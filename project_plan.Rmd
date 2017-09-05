@@ -5,10 +5,6 @@ date: "9/4/2017"
 output: html_document 
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(comment = "")
-```
-
 ##Overview of Competition
 
 "In this million-dollar competition, participants will develop an algorithm that makes predictions about the future sale prices of homes. The contest is structured into two rounds, the qualifying round which opens May 24, 2017 and the private round for the 100 top qualifying teams that opens on Feb 1st, 2018. In the qualifying round, you’ll be building a model to improve the Zestimate residual error. In the final round, you’ll build a home valuation algorithm from the ground up, using external data sources to help engineer new features that give your model an edge over the competition."

@@ -2,7 +2,7 @@
 .Rhistory
 .Ruserdata
 .DS_Store
-.html
+*.html
 train_2016_v2.csv
 properties_2016.csv
 zillow_data_dictionary.xlsx
