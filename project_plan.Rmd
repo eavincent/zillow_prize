@@ -6,35 +6,28 @@ output: html_document
 ---
 
 ##Overview of Competition
+The [Zillow prize competition](https://www.kaggle.com/c/zillow-prize-1): In this million-dollar competition, participants will develop an algorithm that makes predictions about the future sale prices of homes. The contest is structured into two rounds, the qualifying round which opens May 24, 2017 and the private round for the 100 top qualifying teams that opens on Feb 1st, 2018. In the qualifying round, you’ll be building a model to improve the Zestimate residual error. In the final round, you’ll build a home valuation algorithm from the ground up, using external data sources to help engineer new features that give your model an edge over the competition.
 
-"In this million-dollar competition, participants will develop an algorithm that makes predictions about the future sale prices of homes. The contest is structured into two rounds, the qualifying round which opens May 24, 2017 and the private round for the 100 top qualifying teams that opens on Feb 1st, 2018. In the qualifying round, you’ll be building a model to improve the Zestimate residual error. In the final round, you’ll build a home valuation algorithm from the ground up, using external data sources to help engineer new features that give your model an edge over the competition."
-- [kaggle](https://www.kaggle.com/c/zillow-prize-1)
-
-"In this competition, Zillow is asking you to predict the log-error between their Zestimate and the actual sale price, given all the features of a home. The log error is defined as
+In this competition, Zillow is asking you to predict the log-error between their Zestimate and the actual sale price, given all the features of a home. The log error is defined as
 
 *logerror=log(Zestimate)-log(SalePrice)*
 
-and it is recorded in the transactions file *train.csv*. In this competition, you are going to predict the logerror for the months in Fall 2017. Since all the real estate transactions in the U.S. are publicly available, we will close the competition (no longer accepting submissions) before the evaluation period begins." - [kaggle](https://www.kaggle.com/c/zillow-prize-1/data)
+and it is recorded in the transactions file *train.csv*. In this competition, you are going to predict the logerror for the months in Fall 2017. Since all the real estate transactions in the U.S. are publicly available, we will close the competition (no longer accepting submissions) before the evaluation period begins.
 
 ###Choose Either Python or R
-
 Python appears to be the language of choice for the kagglers in this competition, but I am not very familiar with Python. Choice depends mostly on time restrictions - is there time to learn Python *and* machine learning in time to create a reasonable algorithm?
 
 ###Learning Machine Learning
-
 1. Complete machine learning courses on [DataCamp](https://www.datacamp.com/home)
     * Skill track for machine learning in [R](https://www.datacamp.com/tracks/machine-learning) (16hrs)
     * Skill track for machine learning in [Python](https://www.datacamp.com/tracks/machine-learning-with-python) (16hrs)
 2. Go through [Titanic tutorial](https://www.kaggle.com/c/titanic) on Kaggle
 
 ###Import and Explore Data
-
 Become familiar with the format and general structure of the data.
 
 ###Clean Data
-
 Determine how to handle missing data and confirm that the classification methods are consistent for all entries (e.g. are bathrooms included in the total number of rooms?)
 
 ###Begin Building Algorithm
-
 A very simple algorithm to try first is the random forest method.
