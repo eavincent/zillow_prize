@@ -14,12 +14,13 @@ In this competition, Zillow is asking you to predict the log-error between their
 
 and it is recorded in the transactions file *train.csv*. In this competition, you are going to predict the logerror for the months in Fall 2017. Since all the real estate transactions in the U.S. are publicly available, we will close the competition (no longer accepting submissions) before the evaluation period begins.
 
+## Project Plan
 ### Choose Either Python or R
 Python appears to be the language of choice for the kagglers in this competition, but I am not very familiar with Python. Choice depends mostly on time restrictions - is there time to learn Python *and* machine learning in time to create a reasonable algorithm?
 
 ### Learn Machine Learning
 1. Complete machine learning courses on [DataCamp](https://www.datacamp.com/home)
-    * Skill track for machine learning in [R](https://www.datacamp.com/tracks/machine-learning) (16hrs)
+    * Skill track for machine learning in [R](https://www.datacamp.com/tracks/machine-learning) (16hrs) <span style="color:red">**in progress**</span>
     * Skill track for machine learning in [Python](https://www.datacamp.com/tracks/machine-learning-with-python) (16hrs)
 2. Go through [Titanic tutorial](https://www.kaggle.com/c/titanic) on Kaggle
 
