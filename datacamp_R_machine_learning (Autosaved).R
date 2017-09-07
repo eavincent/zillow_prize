@@ -4,11 +4,12 @@ author: "Liz Vincent"
 date: "9/4/2017"
 output: html_document
 ---
+# DataCamp: Machine Learning with R Skill Track
 
-## Supervised learning
+## Course 1: Supervised learning in R: Classification
 
 * Train a machine to learn from prior examples
-* Classification: concept to be learned is a set of categories
+* Classification: concept to be learned is a set of _categories_
 
 ### Classification tasks - K nearest neighbors
 * Coordinates in a feature-space - e.g. red signs close to other red signs
@@ -88,7 +89,7 @@ output: html_document
 * Nodes and branches with only minor impact on the tree's classification accuracy can be pruned
 * Post-pruning with `rpart` is done after the call to `rpart()` with `prune(model, cp=cutpoint)`
 
-###Decision tree forest
+### Decision tree forest
 * A number of classification trees can be combined into a collection known as a decision tree forest
 * Among the most powerful machine learning classifiers, but easy to use
 * Not a single, overly-complex tree, but many simpler trees that together reflect the complexity of the data
@@ -100,3 +101,9 @@ output: html_document
 * `m <- randomForest(y ~ x1 + x2 + x3, data, ntree, mtry)` where `ntree` is the number of trees in the forest and `mtry` is the number of predictors (features) per tree - default is `sqrt(p)` where `p` is the total number of predictors (usually okay to leave as-is)
 * Use `predict()` again
 * Even with a large number of trees the model usually runs fairly quickly because each tree only uses a small portion of the dataset
+* Due to the random nature of the forest, results may very each time the forest is created
+
+## Course 2: Supervised Learning in R: Regression
+
+* Regression: predicts a _numeric_ outcome (expected value) from a set of inputs
+* Linear regression model is a type of supervised learning
