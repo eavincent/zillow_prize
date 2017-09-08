@@ -47,7 +47,7 @@ output: html_document
 
 ### Binary predictions with regression
 * Logistic regression produces an S-shaped curve where for any input value of x, every value of y is between 0 and 1
-* `glm(y~ x1 + x2 + x3, data = data, family="binomial")` tells `R` to perform logistic regression
+* `glm(y ~ x1 + x2 + x3, data = data, family="binomial")` tells `R` to perform logistic regression
 * Once model is built, can be used to estimate proabilities
 * `type="response"` produces predicted probabilities, as opposed to the default log of odds
 * To make predictions, probabilities must be converted into a response using `ifelse()` statement for where the probability falls, e.g. `pred<-ifelse(prob > 0.5, 1, 0)`
@@ -106,4 +106,75 @@ output: html_document
 ## Course 2: Supervised Learning in R: Regression
 
 * Regression: predicts a _numeric_ outcome (expected value) from a set of inputs
+
+### Linear Regression
 * Linear regression model is a type of supervised learning
+* Assumes expected outcome is a weighted sum of all the inputs
+* Change in y is linearly proportional to a change in any x
+* `lm("y ~ x1 + x2 + x3")` function in R calculates linear regression model
+* `broom::glance(m)` will package the summary of the model `m` in a data frame
+* Call `predict(model, newdata)` on the model to get predictions, as in the other cases
+* Easy to fit, concise, less prone to overfitting
+* Can't express non-linear or non-additive data
+* Collinearity: input variables are partially correlated
+
+### Evaluating a Model
+* Residual: actual outcome - prediction
+* Systematic errors are indicated by clusters of residuals that are all positive or all negative
+* Gain curve plot is useful when sorting the instances is more important than predicting the exact outcome value
+
+#### Root Mean Squared Error (RMSE)
+$$RMSE = \sqrt{mean((pred-y)^2)}$$
+or
+$$RMSE = \sqrt{mean(residual^2)}$$
+* One way to evaluate the RMSE is to compare it to the standard deviation
+* RMSE < SD means the model estimates better than simply taking the average
+
+#### R^2^
+* R^2^ near 1 means the model fits well, R^2^ near 0 means the model performs no better than guessing the average value
+* R^2^ is the variance explained by the model
+$$R^2=1-\frac{RSS}{SS_{Tot}}$$
+Residual sum of squares ($RSS$) is the variance from the model:
+$$RSS=\sum{residual^2}$$
+Total sum of squares ($SS_{Tot}$) is the variance of the data:
+$$SS_{Tot}=\sum{(y-\bar{y})^2}$$
+* R^2^ is the square of the correlation ($\rho$) between the prediction and the outcome:
+$$\rho=corr(prediction, outcome)$$
+$$\rho^2=R^2$$
+
+### Properly Training a Model
+* Split data into training and test sets
+* Train model then compare RMSE and R^2^ of model's performance on train and test sets
+* If R^2^ is much higher and RMSE is much lower for the training set than the test set, the model is overfit
+* If there is not enough data to split into training and test set, split data into 3 groups: A, B, and C
+    + Train 1st model on A and B and test on C
+    + Train 2nd model on B and C and test on A
+    + Train 3rd model on A and C and test on B
+    + None of these models were tested on their own training data so the RMSE and R^2^ should give an unbiased estimator of how well the model will do on future predictions
+    + If it looks good, create a final model trained on all the data
+    + This model's performance can't be evaluated prior to predictions
+* Create a cross-validation plan with `vtreat::kWayCrossValidation()`
+
+### Variable Interactions
+* Simultaneous influence of two variables on the outcome is **not additive**
+* `y ~ x1 + x2 + x1:x2` is the same as `y ~ x1*x2`
+* To express the _product_ of two variables, use the `I()` function: `y ~ I(x1*x2)`
+
+### Transforming the Response before Modeling
+* `model <- lm(log(y) ~ x, data = train)`
+* `logpred <- predict(model, data = test)`
+* `pred <- exp(logpred)`
+
+#### Multiplicative Error for Log-Transformed Outcomes
+$$log(a)+log(b)=log(ab)$$
+$$log(a)-log(b)=log(\frac{a}{b})$$
+
+* Multiplicative error: $\frac{pred}{y}$
+
+* Relative error: $\frac{pred-y}{y}=\frac{pred}{y}-1$
+
+* Reducing multiplicative error reduces relative error
+
+### Transforming the Input before Modeling
+* When using exponents in modeling, use the `I()` function to treat the expression mathematically, not as an interaction, e.g. `y ~ I(x1^2)`
+* Can make linear, quadratic, cubic, etc. models and use cross-validation to determine the best fit
