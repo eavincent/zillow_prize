@@ -178,3 +178,40 @@ $$log(a)-log(b)=log(\frac{a}{b})$$
 ### Transforming the Input before Modeling
 * When using exponents in modeling, use the `I()` function to treat the expression mathematically, not as an interaction, e.g. `y ~ I(x1^2)`
 * Can make linear, quadratic, cubic, etc. models and use cross-validation to determine the best fit
+
+### Logistic Regression
+* Predicting _whether_ an event occurs (y/n) is classification
+* predicting the _probability_ than an event occurs is regression
+* Not a linear regression bc probability must be [0,1], whereas linear regression models give values (-infinity,infinity)
+* Logistic regression assumes inputs are additive and linear in _log-odds_ $$log(\frac{p}{1-p})=\beta_0+\beta_1x_1+\beta_2x_2+...$$
+* Fit logistic regression with `glm(formula, data, family=binomial)`
+* `glm()` assumes two possible outcomes: _a_ and _b_
+* Model returns P(_b_)
+* Recommendation: encode outcomes as 0/1 or FALSE/TRUE
+* Again, use `predict(m, data, type="response")
+
+### Predict Count Data
+* Counts are nonegative and integral values
+* Counts are predicted by Poisson or Quasipoisson regression
+* Poisson assumes `mean(y) = var(y)`
+* If `var(y)` is much different from `mean(y)` use `quasipoisson`
+* Generally requires large sample size
+* If counts >> 0 regular regression is fine
+
+### Generalized Additive Models (GAM)
+* Output depends additively on unknown, smooth functions of input variables
+* GAMs are more complex and therefore more likely to overfit, and so are best used on large datasets
+* To specify that an input has a nonlinear relationship to an output, use `s()`
+* Not recommended to use `s()` with a categorical variable: `s()` tries to fit a spline and requires more than ~10 unique values
+* To find best model, try linear, quadratic, cubic, GAM
+
+### Descision-Tree Methods
+* If a AND b AND c THEN y
+* Ensembles of trees generally do better than single trees:
+    + Random Forest
+    + Gradient-boosted trees
+    
+### Random Forests
+* Multiple diverse division trees averaged together reduce risk of overfit and give finer-grain predictions
+* Randomization gives diversity to the trees
+* `ranger(formula, data, num.trees, respect.unordered.factors)` where `num.trees` is 500 by default, and is recommended to be at least 200 and `respect.unordered.factors = "order"` is the safe option for categorical variables
