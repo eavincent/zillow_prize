@@ -215,3 +215,12 @@ $$log(a)-log(b)=log(\frac{a}{b})$$
 * Multiple diverse division trees averaged together reduce risk of overfit and give finer-grain predictions
 * Randomization gives diversity to the trees
 * `ranger(formula, data, num.trees, respect.unordered.factors)` where `num.trees` is 500 by default, and is recommended to be at least 200 and `respect.unordered.factors = "order"` is the safe option for categorical variables
+
+### One-Hot Encoding and Gradient Boosting
+* `xgboost()` does not accept categorical variables
+* One-hot-encode categorical variables with `vtreat`
+* Design treatment plan from training data to safely encode both training data and future data to a form that is compatible with `xgboost()`
+* Gradient boosting starts with fitting shallow tree
+* Fit tree to residuals of the model 
+
+## Course 3: Unsupervised Learning in R

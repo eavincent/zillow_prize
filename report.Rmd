@@ -1,0 +1,109 @@
+---
+title: "Zillow Project Report"
+author: "Liz Vincent"
+date: "9/27/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(data.table)
+library(corrplot)
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+library(stringi)
+library(stringr)
+library(rebus)
+```
+
+To-do:
+* Handle categorical variables
+* Going to need to handle missing data - either throw it out or impute
+    + Create a colume for "imputed" in case of non-random missingness
+* Use linear model as the baseline - whatever your machine learning algorithm is should do better than a linear model
+* Predict by the mean as a baseline too - if the machine learning algorithm does worse than predicting by the mean, it's incorrect
+* Plot missingness
+* Make a table for RMSE and R^2 values to compare models 
+* Upload code to Kaggle and make public so that code is reproducible for instructors
+
+```{r data_import, include=FALSE}
+properties_2016<-read.csv("properties_2016.csv",stringsAsFactors = F)  # This takes a while...~3 million rows, 58 columns
+train<-read.csv("train_2016_v2.csv")
+
+# Count the number of NAs or empty strings in each column of properties_2016
+missingness<-lapply(properties_2016,function(x){
+    ifelse(is.character(x),
+          sum(str_detect(x,pattern=START %R% END)),
+          sum(is.na(x))
+  )
+})
+
+# Format missingness
+missingness<-round(unlist(missingness)/n*100,2)
+missingness<-sort(missingness,decreasing=T)
+missingness<-as.data.frame(missingness)
+missingness$var<-stri_trans_totitle(row.names(missingness))
+row.names(missingness)<-seq(1:nrow(missingness))
+missingness<-select(missingness,c("var","missingness"))
+```
+
+```{r plot_missingness, echo=F}
+missingness<-missingness %>% mutate(action = lapply(missingness,function(x){if(x <=50){"Include"} else if(x>50 & x < 95){"Impute"} else{"Exclude"}}))
+missingness$action<-as.character(missingness$action)
+
+ggplot(missingness,aes(x=reorder(var, -missingness),y=missingness,fill=action)) +
+  geom_col() +
+  scale_fill_manual(values=c("black","orange","red")) +
+  scale_y_continuous(limits = c(NA,102),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank(),legend.position = "none",axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), axis.ticks.x=element_blank()) +
+  labs(y="Missingness (%)",x=element_blank())
+```
+
+Although at first glance it appears that many values have very high missingness, there are several instances in which "missing" data may actually be a negative response. For example, `taxdelinquencyflag` is missing for `r missingness[missingness$var == "Taxdelinquencyflag","missingness"]` of observations, when in reality these are probably observations in which there has not been a tax delinquency flag. Therefore, I will not exclude tax delinquency tag or year based on missingness, but will impute the missing values for tax delinquency tag as negative responses.
+
+```{r imputation}
+imputed_properties_2016<-properties_2016
+imputed_properties_2016$taxdelinquencyflag <- ifelse(imputed_properties_2016$taxdelinquencyflag == "Y",TRUE,FALSE)
+imputed_properties_2016[imputed_properties_2016$taxdelinquencyflag == FALSE,"taxdelinquencyyear"] <- "None"
+imputed_properties_2016[!is.na(imputed_properties_2016$fireplacecnt),"fireplaceflag"]<-TRUE
+imputed_properties_2016[imputed_properties_2016$fireplaceflag == "true","fireplaceflag"] <- TRUE
+imputed_properties_2016<-imputed_properties_2016[,!(names(imputed_properties_2016) %in% c("basementsqft","storytypeid"))] # These have 99.5% missingness and their missingness almost completely overlaps - the only storytypeid is "basement"
+imputed_properties_2016$pool <- ifelse(!is.na(imputed_properties_2016$poolcnt) | !is.na(imputed_properties_2016$poolsizesum) | !is.na(imputed_properties_2016$pooltypeid10) | !is.na(imputed_properties_2016$pooltypeid2) | !is.na(imputed_properties_2016$pooltypeid7),TRUE,NA)
+imputed_properties_2016<-imputed_properties_2016[,!(names(imputed_properties_2016) %in% c("poolcnt","hashottuborspa"))] # These are redundant
+
+
+missingness<-lapply(imputed_properties_2016,function(x){
+    ifelse(is.character(x),
+          sum(str_detect(x,pattern=START %R% END)),
+          sum(is.na(x))
+  )
+})
+
+# Format missingness
+missingness<-round(unlist(missingness)/n*100,2)
+missingness<-sort(missingness,decreasing=T)
+missingness<-as.data.frame(missingness)
+missingness$var<-stri_trans_totitle(row.names(missingness))
+row.names(missingness)<-seq(1:nrow(missingness))
+missingness<-select(missingness,c("var","missingness"))
+
+missingness<-missingness %>% mutate(action = lapply(missingness,function(x){if(x <=50){"Include"} else if(x>50 & x < 95){"Impute"} else{"Exclude"}}))
+missingness$action<-as.character(missingness$action)
+
+ggplot(missingness,aes(x=reorder(var, -missingness),y=missingness,fill=action)) +
+  geom_col() +
+  scale_fill_manual(values=c("black","orange","red")) +
+  scale_y_continuous(limits = c(NA,102),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank(),legend.position = "none",axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), axis.ticks.x=element_blank()) +
+  labs(y="Missingness (%)",x=element_blank())
+
+```
+
+```{r pressure, echo=FALSE}
+# calculate correlations of variables
+M <- cor(properties_2016)
+```
