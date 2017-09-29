@@ -1,0 +1,354 @@
+---
+title: "Zillow Project Analysis"
+author: "Liz Vincent"
+date: "9/27/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(data.table)
+library(corrplot)
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+library(stringi)
+library(stringr)
+library(rebus)
+library(gridExtra)
+library(reshape2)
+
+properties<-read.csv("properties_2016.csv",stringsAsFactors = F)  # This takes a while...~3 million rows, 58 columns
+train<-read.csv("train_2016_v2.csv")
+```
+
+# Training Data
+
+## Tidying
+
+Tidy the training data by merging with the metadata and coercing numeric ID variables to factors.
+
+```{r train_variable_class, echo=F}
+train<-merge(train,properties,by="parcelid")
+factor_vars <- str_subset(names(train),pattern="id")
+factor_vars <- c(factor_vars,"fips","propertycountylandusecode","propertyzoningdesc","rawcensustractandblock","censustractandblock")
+train[,factor_vars]<-lapply(train[,factor_vars],factor)
+str(train)
+```
+
+### Missingness
+
+Calculate the missingness for each variable by counting the NA or empty string observations.
+
+```{r train_missingness, include=FALSE}
+# Count the number of NAs or empty strings in each column of properties_2016
+missingness<-lapply(train,function(x){
+    ifelse(is.character(x),
+          sum(str_detect(x,pattern=START %R% END)),
+          sum(is.na(x))
+  )
+})
+
+# Format missingness
+missingness<-round(unlist(missingness)/nrow(train)*100,2)
+missingness<-sort(missingness,decreasing=T)
+missingness<-as.data.frame(missingness)
+missingness$var<-stri_trans_totitle(row.names(missingness))
+row.names(missingness)<-seq(1:nrow(missingness))
+missingness<-select(missingness,c("var","missingness"))
+missingness<-missingness %>% mutate(category = lapply(missingness,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
+missingness$category<-as.character(missingness$category)
+
+p1 <- ggplot(missingness,aes(x=reorder(var, missingness),y=missingness,fill=category)) +
+  geom_col() +
+  scale_fill_manual(breaks=c(">95%",">=5%, <=95%","<5%"),values=c("blue","black","red")) +
+  scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank(),legend.position = c(0.87,0.1),axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), axis.ticks.x=element_blank()) +
+  guides(fill=guide_legend(element_blank())) +
+  labs(y="Missingness (%)",x=element_blank()) +
+  coord_flip()
+
+p1
+
+
+# Check if missingness is associated with logerror
+character_variables<-names(which(sapply(train, class) == "character")) # Get names of all columns whose entries are characters
+
+tmp1<-as.data.frame(is.na(train[,!(names(train) %in% character_variables)])) # Check if NA for all columns whose entries are not characters
+
+tmp2<-as.data.frame(lapply(train[,names(train) %in% character_variables],function(x){ 
+  str_detect(x,pattern = START %R% END)
+}))  # Check if empty string for all columns whose entries are characters
+
+df_missing<-cbind(tmp1,tmp2)
+
+names(df_missing)<-names(select(df_missing,names(train))) # reorder to same order as train
+
+df_missing<-sapply(df_missing,as.numeric)
+
+cor_missing<-cor(df_missing)
+
+cor_missing<-cor_missing[which(lapply(as.data.frame(df_missing),sum) > 1),which(lapply(as.data.frame(df_missing),sum) > 1)]
+
+corrplot(cor_missing,type="lower", title="Correlation of the Missingness of Variables",order="hclust") 
+  
+
+cor_logerror_missing<-cor(df_missing,train$logerror)
+
+cor_logerror_missing<-cor_logerror_missing[!is.na(cor_logerror_missing),]
+cor_logerror_missing<-as.data.frame(cor_logerror_missing)
+cor_logerror_missing$type<-row.names(cor_logerror_missing)
+
+corrplot(cor_logerror_missing,type="lower", title="Correlation of Log Error to the Missingness of Variables",order="hclust") 
+
+ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), y=abs(cor_logerror_missing))) +
+  geom_col() +
+  coord_flip()
+```
+
+```{r distance_matrix, include=F}
+#Create distance matrix using latitude and longitude coordinates so that regional values may be imputed based on k nearest neighbors
+ggplot(train, aes(x=latitude,y=longitude,color=regionidcity)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+ggplot(train[is.na(train$regionidcity),], aes(x=latitude,y=longitude)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+# Impute city based on zip and vice versa
+# Will only work for cities and zips that are uniquely paired
+region_table<-table(droplevels(train$regionidcity),droplevels(train$regionidzip))
+melted_region_table<-melt(region_table)
+names(melted_region_table)<-c("regionidcity","regionidzip","frequency")
+melted_region_table<-melted_region_table[!(melted_region_table$frequency == 0),]
+unique_cities<-names(which(table(melted_region_table$regionidcity) == 1)) # Cities that are uniquely associated with 1 zip code
+city_key<-melted_region_table[melted_region_table$regionidcity %in% unique_cities,1:2] # Create a key to associate city with Zip
+unique_zips<-names(which(table(melted_region_table$regionidzip) == 1)) # Zip codes that are uniquely associated with 1 city
+zip_key<-melted_region_table[melted_region_table$regionidzip %in% unique_zips,1:2] # Create a key to associate Zip with city
+
+# Check if there are entries that have zip but no city, and their zip is uniquely associated with one city
+dim(train[is.na(train$regionidcity) & train$regionidzip %in% unique_zips,]) # 779 entries have a zip code uniquely associated with 1 city, but no city data
+m<-match(train[is.na(train$regionidcity) & train$regionidzip %in% unique_zips,"regionidzip"],zip_key$regionidzip)
+train[is.na(train$regionidcity) & train$regionidzip %in% unique_zips,"regionidcity"] <- zip_key$regionidcity[m]
+
+# Check if there are entries that have city but no zip, and their city is uniquely associated with one zip
+dim(train[is.na(train$regionidzip) & train$regionidcity %in% unique_cities,]) # 5 entries have a zip code uniquely associated with 1 city, but no city data
+m<-match(train[is.na(train$regionidzip) & train$regionidcity %in% unique_cities,"regionidcity"],city_key$regionidcity)
+train[is.na(train$regionidzip) & train$regionidcity %in% unique_cities,"regionidzip"] <- city_key$regionidzip[m]
+
+
+
+#coordinates<-train[,c("latitude","longitude")]
+#samples<-sample(1:nrow(train),1000)
+#sqrt((latitude1 - latitude2)^2 + (longitude1 - longitude2)^2)
+
+#distance_mat<-matrix(NA, nrow=nrow(coordinates),ncol=nrow(coordinates))
+
+#for (i in 1:nrow(coordinates)){
+#  for (j in 1:nrow(coordinates)){
+#    sqrt((coordinates[i,"latitude"] - coordinates[j,"latitude"]) ** 2 + (coordinates[i,"longitude"] - coordinates[j,"longitude"]) ** 2)
+# }
+#}
+
+distance_mat<-matrix(NA,nrow=5,ncol=5)
+
+for (i in 1:5){
+  for (j in 1:5){
+    distance_mat[i,j]<-sqrt((coordinates[i,"latitude"] - coordinates[j,"latitude"]) ** 2 + (coordinates[i,"longitude"] - coordinates[j,"longitude"]) ** 2)
+  }
+}
+
+```
+
+### Imputation
+
+
+```{r train_imputation}
+imputed_train<-train
+
+imputed_train$taxdelinquencyflag <- ifelse(imputed_train$taxdelinquencyflag == "Y",TRUE,FALSE)
+imputed_train[!is.na(imputed_train$taxdelinquencyyear) & imputed_train$taxdelinquencyyear == 0,"taxdelinquencyyear"] <- NA
+
+imputed_train[!is.na(imputed_train$fireplacecnt),"fireplaceflag"]<-TRUE
+imputed_train[imputed_train$fireplaceflag == "true","fireplaceflag"] <- TRUE
+imputed_train$fireplaceflag <- as.logical(imputed_train$fireplaceflag)
+
+imputed_train[!is.na(imputed_train$basementsqft),"basement"] <- TRUE
+imputed_train<-imputed_train[,!(names(imputed_train) == "storytypeid")] # Only storytypeid is "basement" and completely overlaps with basementsqft values - created new value called "basement" that is logical and removing storytypeid
+
+imputed_train[!is.na(imputed_train$poolcnt) | !is.na(imputed_train$poolsizesum) | !is.na(imputed_train$pooltypeid10) | !is.na(imputed_train$pooltypeid2) | !is.na(imputed_train$pooltypeid7),"pool"] <- TRUE
+imputed_train$pooltypeid10<-as.logical(ifelse(imputed_train$pooltypeid10 == 1, TRUE, NA))
+imputed_train$pooltypeid7<-as.logical(ifelse(imputed_train$pooltypeid7 == 1, TRUE, NA))
+imputed_train$pooltypeid2<-as.logical(ifelse(imputed_train$pooltypeid2 == 1, TRUE, NA))
+
+imputed_train[!is.na(imputed_train$pooltypeid10) | !is.na(imputed_train$pooltypeid7),"pooltypeid2"] <- FALSE
+imputed_train[!is.na(imputed_train$pooltypeid10) | !is.na(imputed_train$pooltypeid2),"pooltypeid7"] <- FALSE
+imputed_train[!is.na(imputed_train$pooltypeid7) | !is.na(imputed_train$pooltypeid2),"pooltypeid10"] <- FALSE
+
+imputed_train<-imputed_train[,!(names(imputed_train) %in% c("poolcnt","hashottuborspa"))] # These are redundant with "pool" and "poolytpeid2/10", which both include information about hottub or spa
+```
+
+
+```{r train_recalculate_missingness,}
+missingness<-lapply(imputed_train,function(x){
+    ifelse(is.character(x),
+          sum(str_detect(x,pattern=START %R% END)),
+          sum(is.na(x))
+  )
+})
+
+# Format missingness
+missingness<-round(unlist(missingness)/nrow(train)*100,2)
+missingness<-sort(missingness,decreasing=T)
+missingness<-as.data.frame(missingness)
+missingness$var<-stri_trans_totitle(row.names(missingness))
+row.names(missingness)<-seq(1:nrow(missingness))
+missingness<-select(missingness,c("var","missingness"))
+
+missingness<-missingness %>% mutate(category = lapply(missingness,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
+missingness$category<-as.character(missingness$category)
+```
+
+```{r echo=F}
+p2 <- ggplot(missingness,aes(x=reorder(var, missingness),y=missingness,fill=category)) +
+  geom_col() +
+  scale_fill_manual(breaks=c(">95%",">=5%, <=95%","<5%"),values=c("blue","black","red")) +
+  scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank(),legend.position = c(0.87,0.1),axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), axis.ticks.x=element_blank()) +
+  guides(fill=guide_legend(element_blank())) +
+  labs(y="Missingness (%)",x=element_blank()) +
+  coord_flip()
+
+p2
+
+ggplot(train, aes(x=latitude,y=longitude,color=regionidcity)) +
+   geom_point() +
+   theme(legend.position = "none")
+
+ggplot(train, aes(x=latitude,y=longitude,color=taxamount)) +
+   geom_point() +
+   theme(legend.position = "none") +
+  scale_color_gradient2()
+
+#ggplot(train[is.na(train$taxamount),], aes(x=latitude,y=longitude,color=taxamount)) +
+#  geom_point() +
+#  ylim(c(min(train$longitude),max(train$longitude))) +
+#  xlim(c(min(train$latitude),max(train$latitude))) +
+#  theme(legend.position = "none") +
+#  scale_color_gradient2()
+
+#sqrt(a^2 +b^2)
+# Calculate physical dstances between properties
+# take a sample of the 5 nearest homes, houses with NA for regionidcity will be classified as the regioncityid of the majority of its 5 nearest neighbors
+
+
+```
+
+### Correlation
+
+```{r pressure, echo=FALSE}
+# calculate correlations of variables
+#M <- cor(imputed_train,use="pairwise.complete.obs")
+```
+
+# New Data
+
+## Tidying
+Tidy the data for which logerrors are to be predicted.
+
+```{r test_variable_classes}
+
+```
+
+### Missingness
+```{r test_missingness, include=FALSE}
+# Count the number of NAs or empty strings in each column of properties_2016
+missingness<-lapply(properties,function(x){
+    ifelse(is.character(x),
+          sum(str_detect(x,pattern=START %R% END)),
+          sum(is.na(x))
+  )
+})
+
+# Format missingness
+missingness<-round(unlist(missingness)/nrow(train)*100,2)
+missingness<-sort(missingness,decreasing=T)
+missingness<-as.data.frame(missingness)
+missingness$var<-stri_trans_totitle(row.names(missingness))
+row.names(missingness)<-seq(1:nrow(missingness))
+missingness<-select(missingness,c("var","missingness"))
+missingness<-missingness %>% mutate(category = lapply(missingness,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
+missingness$category<-as.character(missingness$category)
+```
+
+```{r plot_missingness, echo=F}
+ggplot(missingness,aes(x=reorder(var, missingness),y=missingness,fill=category)) +
+  geom_col() +
+  scale_fill_manual(breaks=c(">95%",">=5%, <=95%","<5%"),values=c("blue","black","red")) +
+  scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank(),legend.position = c(0.87,0.1),axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), axis.ticks.x=element_blank()) +
+  guides(fill=guide_legend(element_blank())) +
+  labs(y="Missingness (%)",x=element_blank()) +
+  coord_flip()
+```
+
+### Imputation
+
+```{r imputation}
+imputed_properties<-properties
+
+imputed_properties$taxdelinquencyflag <- ifelse(imputed_properties$taxdelinquencyflag == "Y",TRUE,FALSE)
+imputed_properties[!is.na(imputed_properties$taxdelinquencyyear) & imputed_properties$taxdelinquencyyear == 0,"taxdelinquencyyear"] <- NA
+
+imputed_properties[!is.na(imputed_properties$fireplacecnt),"fireplaceflag"]<-TRUE
+imputed_properties[imputed_properties$fireplaceflag == "true","fireplaceflag"] <- TRUE
+imputed_properties$fireplaceflag <- as.logical(imputed_properties$fireplaceflag)
+
+imputed_properties[!is.na(imputed_properties$basementsqft),"basement"] <- TRUE
+imputed_properties<-imputed_properties[,!(names(imputed_properties) == "storytypeid")] # Only storytypeid is "basement" and completely overlaps with basementsqft values - created new value called "basement" that is logical and removing storytypeid
+
+imputed_properties[!is.na(imputed_properties$poolcnt) | !is.na(imputed_properties$poolsizesum) | !is.na(imputed_properties$pooltypeid10) | !is.na(imputed_properties$pooltypeid2) | !is.na(imputed_properties$pooltypeid7),"pool"] <- TRUE
+imputed_properties$pooltypeid10<-as.logical(ifelse(imputed_properties$pooltypeid10 == 1, TRUE, NA))
+imputed_properties$pooltypeid7<-as.logical(ifelse(imputed_properties$pooltypeid7 == 1, TRUE, NA))
+imputed_properties$pooltypeid2<-as.logical(ifelse(imputed_properties$pooltypeid2 == 1, TRUE, NA))
+
+imputed_properties[!is.na(imputed_properties$pooltypeid10) | !is.na(imputed_properties$pooltypeid7),"pooltypeid2"] <- FALSE
+imputed_properties[!is.na(imputed_properties$pooltypeid10) | !is.na(imputed_properties$pooltypeid2),"pooltypeid7"] <- FALSE
+imputed_properties[!is.na(imputed_properties$pooltypeid7) | !is.na(imputed_properties$pooltypeid2),"pooltypeid10"] <- FALSE
+
+imputed_properties<-imputed_properties[,!(names(imputed_properties) %in% c("poolcnt","hashottuborspa"))] # These are redundant with "pool" and "poolytpeid2/10", which both include information about hottub or spa
+
+missingness<-lapply(imputed_properties,function(x){
+    ifelse(is.character(x),
+          sum(str_detect(x,pattern=START %R% END)),
+          sum(is.na(x))
+  )
+})
+
+# Format missingness
+missingness<-round(unlist(missingness)/nrow(properties)*100,2)
+missingness<-sort(missingness,decreasing=T)
+missingness<-as.data.frame(missingness)
+missingness$var<-stri_trans_totitle(row.names(missingness))
+row.names(missingness)<-seq(1:nrow(missingness))
+missingness<-select(missingness,c("var","missingness"))
+
+missingness<-missingness %>% mutate(category = lapply(missingness,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
+missingness$category<-as.character(missingness$category)
+
+ggplot(missingness,aes(x=reorder(var, missingness),y=missingness,fill=category)) +
+  geom_col() +
+  scale_fill_manual(breaks=c(">95%",">=5%, <=95%","<5%"),values=c("blue","black","red")) +
+  scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank(),legend.position = c(0.87,0.1),axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), axis.ticks.x=element_blank()) +
+  guides(fill=guide_legend(element_blank())) +
+  labs(y="Missingness (%)",x=element_blank()) +
+  coord_flip()
+
+```
