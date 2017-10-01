@@ -1,12 +1,12 @@
 ---
 title: "Zillow Project Report"
 author: "Liz Vincent"
-date: "9/29/2017"
-output: html_document
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = F,message = F, warning = F,fig.align = "center")
 
 library(data.table)
 library(corrplot)
@@ -18,19 +18,18 @@ library(stringr)
 library(rebus)
 library(gridExtra)
 library(reshape2)
+library(ggmap)
 
 properties<-read.csv("properties_2016.csv",stringsAsFactors = F)  # This takes a while...~3 million rows, 58 columns
 train<-read.csv("train_2016_v2.csv")
 ```
 
-```{r train_variable_class, echo=F}
+```{r train_variable_class}
 train<-merge(train,properties,by="parcelid")
 factor_vars <- str_subset(names(train),pattern="id")
 factor_vars <- c(factor_vars,"fips","propertycountylandusecode","propertyzoningdesc","rawcensustractandblock","censustractandblock")
 train[,factor_vars]<-lapply(train[,factor_vars],factor)
-str(train)
 ```
-
 ```{r train_missingness, include=FALSE}
 # Count the number of NAs or empty strings in each column of properties_2016
 missingness<-lapply(train,function(x){
@@ -46,30 +45,33 @@ missingness<-sort(missingness,decreasing=T)
 missingness<-as.data.frame(missingness)
 missingness$var<-stri_trans_totitle(row.names(missingness))
 row.names(missingness)<-seq(1:nrow(missingness))
-missingness<-select(missingness,c("var","missingness"))
-missingness<-missingness %>% mutate(category = lapply(missingness,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
-missingness$category<-as.character(missingness$category)
 ```
 
-## To-do:
-* Tidy training data
-    + Handle categorical variables
-    + Handle missing data - either throw it out or impute
-    + Create a column for "imputed" in case of non-random missingness
-* Subset training data into train and test
-* Use linear modelas the baseline - whatever your machine learning algorithm is should do better than a linear model
-    + Compare to predict by the mean (i.e. predict the mean for every observation) - if the machine learning algorithm does worse than predicting by the mean, it's incorrect
-* Upload code to Kaggle and make public so that code is reproducible for instructors
-* Try ggmap to map properties
+```{r, fig.height=6, fig.width=8}
+coordinates<-train[,c("longitude","latitude")]
 
-Tables and figures:
+coordinates$latitude<-as.numeric(str_replace(coordinates$latitude, pattern=capture(dgt(2)) %R% capture(one_or_more(DGT)),replacement=REF1 %R% DOT %R% REF2))
+coordinates$longitude<-as.numeric(str_replace(coordinates$longitude, pattern=capture("-" %R% dgt(3)) %R% capture(one_or_more(DGT)),replacement=REF1 %R% DOT %R% REF2))
 
-* Plot missingness
-* Make a table for RMSE and R^2 values to compare models 
+
+get_density <- function(x, y, n = 100) {
+  dens <- MASS::kde2d(x = x, y = y, n = n)
+  ix <- findInterval(x, dens$x)
+  iy <- findInterval(y, dens$y)
+  ii <- cbind(ix, iy)
+  return(dens$z[ii])
+}
+#cali <- c(left = -125, bottom = 30, right = -115, top = 40)
+map <- get_googlemap(center=c(lon = -118.4, lat=34), zoom = 8, maptype = "roadmap")
+ggmap(map) +
+  geom_point(aes(x = longitude, y = latitude,color=get_density(x=longitude,y=latitude)), data = coordinates) +
+  scale_color_gradientn("Density",colors = c("blue4","blue","springgreen2","yellow","orange","red","red3"), breaks=c(0.1,3),labels=c("low","high")) +
+  labs(x="Longitude",y="Latitude")
+```
 
 # 1. Tidy the Data
 
 # 2. Address Missingness
 
 # 3. Impute Missing Values
-Although at first glance it appears that many values have very high missingness, there are several instances in which "missing" data may actually be a negative response. For example, `taxdelinquencyflag` is missing for `r missingness[missingness$var == "Taxdelinquencyflag","missingness"]` of observations, when in reality these are probably observations in which there has not been a tax delinquency flag. Therefore, I will not exclude tax delinquency tag or year based on missingness, but will impute the missing values for tax delinquency tag as negative responses.
+Although at first glance it appears that many values have very high missingness, there are several instances in which "missing" data may actually be a negative response. For example, `taxdelinquencyflag` is missing for `r missingness[missingness$var == 'Taxdelinquencyflag','missingness']`% of observations, when in reality these are probably observations in which there has not been a tax delinquency flag. Therefore, I will not exclude tax delinquency tag or year based on missingness, but will impute the missing values for tax delinquency tag as negative responses.

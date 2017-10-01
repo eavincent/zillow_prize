@@ -1,7 +1,7 @@
 ---
 title: "Project Plan for the Zillow Prize"
 author: "Liz Vincent"
-date: "9/4/2017"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: html_document 
 ---
 
@@ -20,15 +20,46 @@ Python appears to be the language of choice for the kagglers in this competition
 
 ### Learn Machine Learning
 1. Complete machine learning courses on [DataCamp](https://www.datacamp.com/home)
-    * Skill track for machine learning in [R](https://www.datacamp.com/tracks/machine-learning) (16hrs) <span style="color:red">**in progress**</span>
-    * Skill track for machine learning in [Python](https://www.datacamp.com/tracks/machine-learning-with-python) (16hrs)
+    * Skill track for machine learning in [R](https://www.datacamp.com/tracks/machine-learning) (16hrs) **in progress**
 2. Go through [Titanic tutorial](https://www.kaggle.com/c/titanic) on Kaggle
 
 ### Import and Explore Data
 Become familiar with the format and general structure of the data.
 
+* Check if missingness correlates with logerror **done**
+* Check if missingness of variables correlates with each other **done**
+* Check if logerror correlates with any of the variables
+    + Requires converting or limiting to numeric variables
+
 ### Clean Data
 Determine how to handle missing data and confirm that the classification methods are consistent for all entries (e.g. are bathrooms included in the total number of rooms?)
 
+* cbind missingness data to training data _before_ imputation
+* Impute variables from information in other variables 
+    + Impute fireplaceflag by fireplacecnt
+    + Impute missing data as negative response for taxdelinquency flag
+    + Impute taxdelinquency year based on tax delinquency flag and vice versa
+    + Impute pool info between the pool variables
+    + Impute zip by city and vice versa for cities and zips that are uniquely associated
+    + Finish imputing zip and city via latitude/longitude coordinates
+    
 ### Begin Building Algorithm
-A very simple algorithm to try first is the random forest method.
+* Predict the mean as a baseline
+* Use linear model as secondary baseline
+* Random forest
+
+## To-do:
+* Tidy training data
+    + Handle categorical variables
+    + Handle missing data - either throw it out or impute
+    + Create a column for "imputed" in case of non-random missingness
+* Subset training data into train and test
+* Use linear modelas the baseline - whatever your machine learning algorithm is should do better than a linear model
+    + Compare to predict by the mean (i.e. predict the mean for every observation) - if the machine learning algorithm does worse than predicting by the mean, it's incorrect
+* Upload code to Kaggle and make public so that code is reproducible for instructors
+* Try ggmap to map properties
+
+Tables and figures:
+
+* Plot missingness
+* Make a table for RMSE and R^2 values to compare models 
