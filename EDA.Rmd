@@ -19,6 +19,7 @@ library(rebus)
 library(gridExtra)
 library(reshape2)
 library(ggmap)
+library(tidyr)
 
 properties<-read.csv("properties_2016.csv",stringsAsFactors = F)  # This takes a while...~3 million rows, 58 columns
 train<-read.csv("train_2016_v2.csv")
@@ -97,7 +98,8 @@ ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), y=ab
   geom_col() +
   scale_fill_brewer(palette = "Set1") +
   coord_flip() +
-  guides(fill=guide_legend("Direction of\nCorrelation"))
+  guides(fill=guide_legend("Direction of\nCorrelation")) +
+  labs(y= "Absolute Value of Correlation with Log Error", x="")
 ```
 
 ```{r distance_matrix, include=F}
@@ -113,7 +115,11 @@ r1<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidzip)) +
 
 # Impute city based on zip and vice versa
 # Will only work for cities and zips that are uniquely paired
-region_table<-table(droplevels(imputed_train$regionidcity),droplevels(imputed_train$regionidzip))
+
+# There are no entries that contain a neighborhood but /not/ a city or zip
+# All entries have county id
+
+region_table<-table(imputed_train$regionidcity,imputed_train$regionidzip)
 melted_region_table<-melt(region_table)
 names(melted_region_table)<-c("regionidcity","regionidzip","frequency")
 melted_region_table<-melted_region_table[!(melted_region_table$frequency == 0),]
@@ -139,6 +145,34 @@ q2<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidcity)) +
 r2<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidzip)) +
   geom_point() +
   theme(legend.position = "none")
+
+grid.arrange(q1,r1,q2,r2)
+
+# Use combination of city and zip to impute neighborhood
+neighborhoods<-unique(imputed_train[,c("regionidcity","regionidzip","regionidneighborhood")])
+neighborhoods<-neighborhoods[!(is.na(neighborhoods$regionidcity) | is.na(neighborhoods$regionidzip) | is.na(neighborhoods$regionidneighborhood)),]
+neighborhoods<-unite(neighborhoods,col="city_zip",regionidcity,regionidzip,sep=".")
+neighborhoods$city_zip<-factor(neighborhoods$city_zip)
+
+m<-match(
+  as.factor((imputed_train %>%
+    filter(!is.na(regionidcity), !is.na(regionidzip), is.na(regionidneighborhood)) %>%
+    unite("city_zip",regionidcity,regionidzip,sep=".") %>%
+    filter(city_zip %in% neighborhoods$city_zip) %>%
+    as.data.frame())$city_zip),
+  neighborhoods$city_zip
+)
+
+imputed_train %>%
+    filter(!is.na(regionidcity), !is.na(regionidzip), is.na(regionidneighborhood)) %>%
+    unite("city_zip",regionidcity,regionidzip,sep=".") %>%
+    filter(city_zip %in% neighborhoods$city_zip) %>%
+    mutate(regionidneighborhood = neighborhoods$regionidneighborhood[m])
+
+imputed_train[!(is.na(imputed_train$regionidcity) | is.na(imputed_train$regionidzip)) & is.na(imputed_train$regionidneighborhood) & (unite(imputed_train,"city_zip",regionidcity,regionidzip,sep="."))$city_zip %in% neighborhoods$city_zip ,"regionidneighborhood"] <- neighborhoods$regionidneighborhood[m]
+
+
+#city, zip, and neighborhood have been imputed as much as they can be with the information known about city and zip.
 
 
 #Create distance matrix using latitude and longitude coordinates so that regional values may be imputed based on k nearest neighbors
