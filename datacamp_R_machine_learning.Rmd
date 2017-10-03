@@ -80,11 +80,13 @@ output: html_document
 * Because of over-fitting, it is important to simulate future data with a test data set that the algorithm cannot use when constructing the tree
 * If the tree performs much better on the training set than on the test set, this suggests the tree has been over-fitted
 * Pre- and post-pruning can be done with `rpart` package
+
 #### Pre-pruning
 * Stop divide and conquer once the tree reaches a predefined size
 * Stop the tree from growing a branch with less than n observations
 * A tree stopped too early may miss sublte patterns
 * Pre-pruning with `rpart` can be done with `rpart.control(maxdepth, minsplit)` as the argument to `control` when running the `rpart()` function
+
 #### Post-pruning
 * Nodes and branches with only minor impact on the tree's classification accuracy can be pruned
 * Post-pruning with `rpart` is done after the call to `rpart()` with `prune(model, cp=cutpoint)`
@@ -188,7 +190,7 @@ $$log(a)-log(b)=log(\frac{a}{b})$$
 * `glm()` assumes two possible outcomes: _a_ and _b_
 * Model returns P(_b_)
 * Recommendation: encode outcomes as 0/1 or FALSE/TRUE
-* Again, use `predict(m, data, type="response")
+* Again, use `predict(m, data, type="response")`
 
 ### Predict Count Data
 * Counts are nonegative and integral values
@@ -212,7 +214,7 @@ $$log(a)-log(b)=log(\frac{a}{b})$$
     + Gradient-boosted trees
     
 ### Random Forests
-* Multiple diverse division trees averaged together reduce risk of overfit and give finer-grain predictions
+* Multiple diverse decision trees averaged together reduce risk of overfit and give finer-grain predictions
 * Randomization gives diversity to the trees
 * `ranger(formula, data, num.trees, respect.unordered.factors)` where `num.trees` is 500 by default, and is recommended to be at least 200 and `respect.unordered.factors = "order"` is the safe option for categorical variables
 
@@ -232,3 +234,38 @@ $$log(a)-log(b)=log(\frac{a}{b})$$
 * Argument to `kmeans()` tells it how many times to run before choosing the optimal clustering
 * Best outcome is determined by total within-cluster sum of squares
 * To guarantee reproducibility, specify `set.seed(n)` before running `kmeans()`
+
+### Hierarchichal Clustering
+* Does not requrie _a priori_ knowledge of the number of clusters
+* Requires only the distance between the observations
+    + Get distance matrix of `x` with `dist(x)`, call `hclust(dist(x))` to get dendrogram
+    + Plot dendrogram with `plot(hclust.out)`
+    + Determine desired height of branches with `abline(h = n)`
+    + Get cluster assignments with `cutree(hclust.out, h = n)` if you want assignments based on tree height, and `cutree(hclust.out, k = i)` if you want assignments based on the number of clusters
+* Two types: bottom-up and top-down
+* Bottom-up hierarchical clustering
+    + Starts by assigning each point to its own cluster
+    + Finds closest 2 clusters and joins them into one cluster
+    + Continues iteratively until there is only one cluster
+* To determine the distance between clusters there are four methods: complete, single, average, and centroid
+    + First three methods (complete, single, and average) calculate the pairwise similarity between all points in cluster 1 and cluster 2
+    + Complete is the default for `hclust()` and takes the largest pairwise similarity between any two points in cluster 1 and cluster 2 as the distance between clusters
+    + Single takes the smallest pairwise similarity as the distance
+    + Average takes the average of the pairwise similarities as the distance
+    + Centroid finds the centroid of cluster 1 and the centroid of cluster 2 and calculates the similarity between the two centroids
+    + As a rule of thumb, complete and average tend to produce more balanced trees
+    + Centroid is rarely used because it allows for fusion of clusters below the original branches of the tree
+* Data must sometimes be normalized to allow for proper clustering
+* `scale(x)` will return a matrix that has been normalized to mean 0, sd 1 by column
+
+### PCA
+* Two main goals of dimenstionality reduction: 
+    + Find structure in features
+    + Aid in visualization
+* Three goals of PCA:
+    + Find linear combinations of variables
+    + Maintain variance in the original data
+    + New features (PCs) are orthogonal
+* `prcomp(data, scale = FALSE, center = TRUE)`
+    + `scale` parameter indicates if data should be scale to stdev 1 before performing PCA. Without scaling, features that are on a larger scale will artificially appear to explain more variance in the data
+    + `center` parameter indicates if data should be centered around 0 before performing PCA

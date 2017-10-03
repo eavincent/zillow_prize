@@ -15,51 +15,44 @@ In this competition, Zillow is asking you to predict the log-error between their
 and it is recorded in the transactions file *train.csv*. In this competition, you are going to predict the logerror for the months in Fall 2017. Since all the real estate transactions in the U.S. are publicly available, we will close the competition (no longer accepting submissions) before the evaluation period begins.
 
 ## Project Plan
-### Choose Either Python or R
-Python appears to be the language of choice for the kagglers in this competition, but I am not very familiar with Python. Choice depends mostly on time restrictions - is there time to learn Python *and* machine learning in time to create a reasonable algorithm?
 
-### Learn Machine Learning
-1. Complete machine learning courses on [DataCamp](https://www.datacamp.com/home)
-    * Skill track for machine learning in [R](https://www.datacamp.com/tracks/machine-learning) (16hrs) **in progress**
-2. Go through [Titanic tutorial](https://www.kaggle.com/c/titanic) on Kaggle
+### 1. Learn Machine Learning (ML)
+* Complete Skill track for ML in [R](https://www.datacamp.com/tracks/machine-learning) (16hrs) **in progress**
+* Go through [Titanic tutorial](https://www.kaggle.com/c/titanic) on Kaggle
 
-### Import and Explore Data
+### 2. Import and Explore Data
 Become familiar with the format and general structure of the data.
 
-* Check if missingness correlates with logerror **done**
-* Check if missingness of variables correlates with each other **done**
-* Check if logerror correlates with any of the variables
-    + Requires converting or limiting to numeric variables
+* ~~Check if missingness correlates with logerror~~ **done**
+* ~~Check if missingness of variables correlates with each other~~ **done**
+* ~~Check if logerror correlates with any of the variables~~ **done**
 
-### Clean Data
+### 3. Clean Data
 Determine how to handle missing data and confirm that the classification methods are consistent for all entries (e.g. are bathrooms included in the total number of rooms?)
 
-* cbind missingness data to training data _before_ imputation
+* ~~Create a column for "imputed" in case of non-random missingness~~ **done**
 * Impute variables from information in other variables 
-    + Impute fireplaceflag by fireplacecnt
-    + Impute missing data as negative response for taxdelinquency flag
-    + Impute taxdelinquency year based on tax delinquency flag and vice versa
-    + Impute pool info between the pool variables
-    + Impute zip by city and vice versa for cities and zips that are uniquely associated
-    + Finish imputing zip and city via latitude/longitude coordinates
+    + ~~Impute fireplaceflag by fireplacecnt~~ **done**
+    + ~~Impute missing data as negative response for taxdelinquency flag~~ **done**
+    + ~~Impute taxdelinquency year based on tax delinquency flag and vice versa~~ **done**
+    + ~~Impute pool info between the pool variables~~ **done**
+    + ~~Impute zip by city and vice versa for cities and zips that are uniquely associated~~ **done**
+    + ~~Finish imputing zip and city via latitude/longitude coordinates~~ **done**
+* Remove features that have too much missing data
+
+### 4. Prepare Data for ML
+* Handle categorical variables
+* Subset training data into train and test
     
-### Begin Building Algorithm
-* Predict the mean as a baseline
-* Use linear model as secondary baseline
+### 5. Develop and Evaluate Algorithms
+* ~~Predict the mean as a baseline~~ **done**
+* Linear model as secondary baseline
 * Random forest
 
-## To-do:
-* Tidy training data
-    + Handle categorical variables
-    + Handle missing data - either throw it out or impute
-    + Create a column for "imputed" in case of non-random missingness
-* Subset training data into train and test
-* Use linear modelas the baseline - whatever your machine learning algorithm is should do better than a linear model
-    + Compare to predict by the mean (i.e. predict the mean for every observation) - if the machine learning algorithm does worse than predicting by the mean, it's incorrect
+## To-do for Report:
 * Upload code to Kaggle and make public so that code is reproducible for instructors
-* Try ggmap to map properties
+* ~~Try ggmap to map properties~~ **done**
 
-Tables and figures:
-
+#### Tables and figures:
 * Plot missingness
 * Make a table for RMSE and R^2 values to compare models 
