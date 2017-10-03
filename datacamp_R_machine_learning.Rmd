@@ -224,3 +224,11 @@ $$log(a)-log(b)=log(\frac{a}{b})$$
 * Fit tree to residuals of the model 
 
 ## Course 3: Unsupervised Learning in R
+* Find structure in unlabeled data
+* Find homogeneous subgroups within a population
+
+### K-Means Clustering
+* Random component to algorithm means the optimal clustering may not always be found the first go-round
+* Argument to `kmeans()` tells it how many times to run before choosing the optimal clustering
+* Best outcome is determined by total within-cluster sum of squares
+* To guarantee reproducibility, specify `set.seed(n)` before running `kmeans()`

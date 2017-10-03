@@ -39,9 +39,9 @@ train[,factor_vars]<-lapply(train[,factor_vars],factor)
 str(train)
 ```
 
-### Missingness
+### Missingness and Imputation
 
-Calculate the missingness for each variable by counting the NA or empty string observations.
+Calculate the missingness for each variable by counting the NA or empty string observations. Impute values based on other correlating variables.
 
 ```{r train_missingness, include=FALSE}
 # Count the number of NAs or empty strings in each column of properties_2016
@@ -105,11 +105,19 @@ ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), y=ab
 ```{r distance_matrix, include=F}
 imputed_train<-train
 
+p<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidcounty)) +
+  geom_point() +
+  theme(legend.position = "none")
+
 q1<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidcity)) +
   geom_point() +
   theme(legend.position = "none")
 
 r1<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidzip)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+s1<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidneighborhood)) +
   geom_point() +
   theme(legend.position = "none")
 
@@ -138,15 +146,6 @@ dim(imputed_train[is.na(imputed_train$regionidzip) & imputed_train$regionidcity 
 m<-match(imputed_train[is.na(imputed_train$regionidzip) & imputed_train$regionidcity %in% unique_cities,"regionidcity"],city_key$regionidcity)
 imputed_train[is.na(imputed_train$regionidzip) & imputed_train$regionidcity %in% unique_cities,"regionidzip"] <- city_key$regionidzip[m]
 
-q2<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidcity)) +
-  geom_point() +
-  theme(legend.position = "none")
-
-r2<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidzip)) +
-  geom_point() +
-  theme(legend.position = "none")
-
-grid.arrange(q1,r1,q2,r2)
 
 # Use combination of city and zip to impute neighborhood
 neighborhoods<-unique(imputed_train[,c("regionidcity","regionidzip","regionidneighborhood")])
@@ -163,17 +162,23 @@ m<-match(
   neighborhoods$city_zip
 )
 
-imputed_train %>%
-    filter(!is.na(regionidcity), !is.na(regionidzip), is.na(regionidneighborhood)) %>%
-    unite("city_zip",regionidcity,regionidzip,sep=".") %>%
-    filter(city_zip %in% neighborhoods$city_zip) %>%
-    mutate(regionidneighborhood = neighborhoods$regionidneighborhood[m])
-
 imputed_train[!(is.na(imputed_train$regionidcity) | is.na(imputed_train$regionidzip)) & is.na(imputed_train$regionidneighborhood) & (unite(imputed_train,"city_zip",regionidcity,regionidzip,sep="."))$city_zip %in% neighborhoods$city_zip ,"regionidneighborhood"] <- neighborhoods$regionidneighborhood[m]
-
 
 #city, zip, and neighborhood have been imputed as much as they can be with the information known about city and zip.
 
+q2<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidcity)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+r2<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidzip)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+s2<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidneighborhood)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+grid.arrange(q1,r1,s1,q2,r2,s2,ncol=3)
 
 #Create distance matrix using latitude and longitude coordinates so that regional values may be imputed based on k nearest neighbors
 
@@ -182,33 +187,92 @@ coordinates<-train[,c("longitude","latitude")]
 coordinates$latitude<-as.numeric(str_replace(coordinates$latitude, pattern=capture(dgt(2)) %R% capture(one_or_more(DGT)),replacement=REF1 %R% DOT %R% REF2))
 coordinates$longitude<-as.numeric(str_replace(coordinates$longitude, pattern=capture("-" %R% dgt(3)) %R% capture(one_or_more(DGT)),replacement=REF1 %R% DOT %R% REF2))
 
-#samples<-sample(1:nrow(train),1000)
-#sqrt((latitude1 - latitude2)^2 + (longitude1 - longitude2)^2)
+zip_na<-which(is.na(imputed_train$regionidzip))
 
-#distance_mat<-matrix(NA, nrow=nrow(coordinates),ncol=nrow(coordinates))
+samples<-sample(which(((imputed_train$longitude > -118000000 & imputed_train$latitude<33900000) | (imputed_train$longitude < -118750000 & imputed_train$latitude >34100000)) & !is.na(imputed_train$regionidzip)),10000)
 
-#for (i in 1:nrow(coordinates)){
-#  for (j in 1:nrow(coordinates)){
-#    sqrt((coordinates[i,"latitude"] - coordinates[j,"latitude"]) ** 2 + (coordinates[i,"longitude"] - coordinates[j,"longitude"]) ** 2)
-# }
-#}
+distance_mat<-matrix(NA, nrow=length(zip_na),ncol=length(samples))
 
-distance_mat<-matrix(NA,nrow=5,ncol=5)
+ggplot(imputed_train[c(samples,zip_na),], aes(x=latitude,y=longitude,color=regionidzip)) +
+  geom_point() +
+  theme(legend.position = "none")
 
-for (i in 1:5){
-  for (j in 1:5){
-    distance_mat[i,j]<-sqrt((coordinates[i,"latitude"] - coordinates[j,"latitude"]) ** 2 + (coordinates[i,"longitude"] - coordinates[j,"longitude"]) ** 2)
-  }
+ggplot(imputed_train[zip_na,], aes(x=latitude,y=longitude)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+ggplot(imputed_train[which((imputed_train$longitude > -118000000 & imputed_train$latitude<33900000) | (imputed_train$longitude < -118750000 & imputed_train$latitude >34100000)),], aes(x=latitude,y=longitude, color=regionidzip)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+for (i in 1:length(zip_na)){
+  for (j in 1:length(samples)){
+    distance_mat[i,j]<-
+      sqrt((coordinates[zip_na[i],"latitude"] - coordinates[samples[j],"latitude"]) ** 2 + (coordinates[zip_na[i],"longitude"] - coordinates[samples[j],"longitude"]) ** 2)
+ }
 }
 
+distance_mat<-as.data.frame(distance_mat)
+names(distance_mat)<-samples
+
+for(i in 1:length(zip_na)){
+imputed_train[zip_na[i],"regionidzip"]<-factor(names(which.max(table(as.character(imputed_train[names(sort(distance_mat[i,])[1:10]),"regionidzip"])))))
+}
+# All zips are imputed
+
+# Impute 23 more city IDs by matching with unique zips
+m<-match(imputed_train[is.na(imputed_train$regionidcity) & imputed_train$regionidzip %in% unique_zips,"regionidzip"],zip_key$regionidzip)
+imputed_train[is.na(imputed_train$regionidcity) & imputed_train$regionidzip %in% unique_zips,"regionidcity"] <- zip_key$regionidcity[m]
+
+# Impute the remaining 1004 missing city data by coordinates
+city_na<-which(is.na(imputed_train$regionidcity))
+
+samples<-sample(which(!is.na(imputed_train$regionidcity)),10000)
+distance_mat<-matrix(NA, nrow=length(city_na),ncol=length(samples))
+
+for (i in 1:length(city_na)){
+  for (j in 1:length(samples)){
+    distance_mat[i,j]<-
+      sqrt((coordinates[city_na[i],"latitude"] - coordinates[samples[j],"latitude"]) ** 2 + (coordinates[city_na[i],"longitude"] - coordinates[samples[j],"longitude"]) ** 2)
+ }
+}
+
+distance_mat<-as.data.frame(distance_mat)
+names(distance_mat)<-samples
+
+for(i in 1:length(city_na)){
+  imputed_train[city_na[i],"regionidcity"]<-factor(names(which.max(table(as.character(imputed_train[names(sort(distance_mat[i,])[1:10]),"regionidcity"])))))
+}
+# All cities are imputed
+
+m<-match(
+  as.factor((imputed_train %>%
+    filter(!is.na(regionidcity), !is.na(regionidzip), is.na(regionidneighborhood)) %>%
+    unite("city_zip",regionidcity,regionidzip,sep=".") %>%
+    filter(city_zip %in% neighborhoods$city_zip) %>%
+    as.data.frame())$city_zip),
+  neighborhoods$city_zip
+)
+
+imputed_train[!(is.na(imputed_train$regionidcity) | is.na(imputed_train$regionidzip)) & is.na(imputed_train$regionidneighborhood) & (unite(imputed_train,"city_zip",regionidcity,regionidzip,sep="."))$city_zip %in% neighborhoods$city_zip ,"regionidneighborhood"] <- neighborhoods$regionidneighborhood[m]
+
+
+q3<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidcity)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+r3<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidzip)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+s3<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidneighborhood)) +
+  geom_point() +
+  theme(legend.position = "none")
+
+grid.arrange(q1,r1,s1,q2,r2,s2,q3,r3,s3,ncol=3)
 ```
 
-### Imputation
-
-
 ```{r train_imputation}
-
-
 imputed_train$taxdelinquencyflag <- ifelse(imputed_train$taxdelinquencyflag == "Y",TRUE,FALSE)
 imputed_train[!is.na(imputed_train$taxdelinquencyyear) & imputed_train$taxdelinquencyyear == 0,"taxdelinquencyyear"] <- NA
 
@@ -229,8 +293,12 @@ imputed_train[!is.na(imputed_train$pooltypeid10) | !is.na(imputed_train$pooltype
 imputed_train[!is.na(imputed_train$pooltypeid7) | !is.na(imputed_train$pooltypeid2),"pooltypeid10"] <- FALSE
 
 imputed_train<-imputed_train[,!(names(imputed_train) %in% c("poolcnt","hashottuborspa"))] # These are redundant with "pool" and "poolytpeid2/10", which both include information about hottub or spa
-```
 
+# Impute unit count based on propertly land use type ID
+imputed_train[imputed_train$propertylandusetypeid == 246 & is.na(imputed_train$unitcnt),"unitcnt"]<-2
+imputed_train[imputed_train$propertylandusetypeid == 247 & is.na(imputed_train$unitcnt),"unitcnt"]<-3
+imputed_train[imputed_train$propertylandusetypeid == 248 & is.na(imputed_train$unitcnt),"unitcnt"]<-4
+```
 
 ```{r train_recalculate_missingness,}
 missingness<-lapply(imputed_train,function(x){
@@ -265,35 +333,31 @@ p2 <- ggplot(missingness,aes(x=reorder(var, missingness),y=missingness,fill=cate
 
 p2
 
-ggplot(train, aes(x=latitude,y=longitude,color=regionidcity)) +
-   geom_point() +
-   theme(legend.position = "none")
-
-ggplot(train, aes(x=latitude,y=longitude,color=taxamount)) +
-   geom_point() +
-   theme(legend.position = "none") +
-  scale_color_gradient2()
-
-#ggplot(train[is.na(train$taxamount),], aes(x=latitude,y=longitude,color=taxamount)) +
-#  geom_point() +
-#  ylim(c(min(train$longitude),max(train$longitude))) +
-#  xlim(c(min(train$latitude),max(train$latitude))) +
-#  theme(legend.position = "none") +
-#  scale_color_gradient2()
-
-#sqrt(a^2 +b^2)
-# Calculate physical dstances between properties
-# take a sample of the 5 nearest homes, houses with NA for regionidcity will be classified as the regioncityid of the majority of its 5 nearest neighbors
-
-
 ```
 
 ### Correlation
 
 ```{r pressure, echo=FALSE}
 # calculate correlations of variables
-#M <- cor(imputed_train,use="pairwise.complete.obs")
+numeric_vars<-names(which(lapply(imputed_train,is.numeric) == TRUE))
+numeric_vars<-numeric_vars[!(numeric_vars %in% c("basementsqft","finishedsquarefeet13","assessmentyear","finishedsquarefeet15","finishedsquarefeet6","threequarterbathnbr","unitcnt"))]
+M <- cor(imputed_train[,names(imputed_train) %in% numeric_vars],use="pairwise.complete.obs")
+corrplot(M,type="lower",order="hclust")
+# None of the numberic variables are correlated with logerror
 ```
+
+### Models
+
+#### Predict the Mean
+```{r}
+train$pred_logerror_mean<-mean(train$logerror)
+ggplot(train,aes(x=logerror,y=pred_logerror_mean)) + 
+  geom_point() +
+  geom_abline(slope=1) +
+  ylim(c(-5,5))
+
+```
+
 
 # New Data
 
