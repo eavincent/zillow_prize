@@ -9,5 +9,6 @@
 *.csv
 *.xlsx
 *.log
+*.aux
 *.gz
 *.tex
