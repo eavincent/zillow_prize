@@ -6,20 +6,18 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,warning = F,message = F)
 
-library(data.table)
-library(corrplot)
-library(dplyr)
-library(ggplot2)
-library(magrittr)
-library(stringi)
-library(stringr)
-library(rebus)
-library(gridExtra)
-library(reshape2)
-library(ggmap)
-library(tidyr)
+packages<-c("data.table","corrplot","dplyr","ggplot2","magrittr","stringi","stringr","rebus","gridExtra","reshape2","ggmap","tidyr","caret")
+
+packages<-c("growthrates")
+
+for (i in packages){
+  if(!require(i,character.only = T,quietly=T,warn.conflicts = F)){
+    install.packages(i)
+  }
+  require(i,character.only = T,quietly=T,warn.conflicts = F)
+}
 
 properties<-read.csv("properties_2016.csv",stringsAsFactors = F)  # This takes a while...~3 million rows, 58 columns
 train<-read.csv("train_2016_v2.csv")

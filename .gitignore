@@ -1,4 +1,5 @@
 .Rproj.user
+.Rprofile
 .Rhistory
 .Rapp.history
 .Ruserdata
@@ -7,4 +8,6 @@
 *.html
 *.csv
 *.xlsx
-
+*.log
+*.gz
+*.tex
