@@ -10,8 +10,6 @@ knitr::opts_chunk$set(echo = TRUE,warning = F,message = F)
 
 packages<-c("data.table","corrplot","dplyr","ggplot2","magrittr","stringi","stringr","rebus","gridExtra","reshape2","ggmap","tidyr","caret")
 
-packages<-c("growthrates")
-
 for (i in packages){
   if(!require(i,character.only = T,quietly=T,warn.conflicts = F)){
     install.packages(i)
@@ -54,7 +52,7 @@ missingness<-lapply(train,function(x){
 missingness<-round(unlist(missingness)/nrow(train)*100,2)
 missingness<-sort(missingness,decreasing=T)
 missingness<-as.data.frame(missingness)
-missingness$var<-stri_trans_totitle(row.names(missingness))
+missingness$var<-row.names(missingness)
 row.names(missingness)<-seq(1:nrow(missingness))
 missingness<-select(missingness,c("var","missingness"))
 missingness<-missingness %>% mutate(category = lapply(missingness,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
@@ -307,14 +305,15 @@ missingness<-lapply(imputed_train,function(x){
 })
 
 # Format missingness
-missingness<-round(unlist(missingness)/nrow(train)*100,2)
-missingness<-sort(missingness,decreasing=T)
+missingness<-as.numeric(missingness)
 missingness<-as.data.frame(missingness)
-missingness$var<-stri_trans_totitle(row.names(missingness))
+missingness$var<-colnames(imputed_train)
+missingness<-missingness[order(missingness$missingness,decreasing=T),]
+missingness$percent<-round(missingness$missingness/nrow(train)*100,3)
 row.names(missingness)<-seq(1:nrow(missingness))
-missingness<-select(missingness,c("var","missingness"))
+missingness<-select(missingness,c("var","missingness","percent"))
 
-missingness<-missingness %>% mutate(category = lapply(missingness,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
+missingness<-missingness %>% mutate(category = lapply(percent,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
 missingness$category<-as.character(missingness$category)
 ```
 
@@ -347,17 +346,54 @@ corrplot(M,type="lower",order="hclust")
 ### Models
 
 #### Predict the Mean
-```{r}
+```{r pred_by_mean}
 train$pred_logerror_mean<-mean(train$logerror)
 ggplot(train,aes(x=logerror,y=pred_logerror_mean)) + 
   geom_point() +
   geom_abline(slope=1) +
   ylim(c(-5,5))
 
-pred_by_mean_RMSE<-sqrt(mean((train$pred_logerror_mean - train$logerror) ** 2))
+pred_by_mean_MAE<-sum(abs(train$pred_logerror_mean - train$logerror))/nrow(train)
+# Actual MAE from sample submission is 0.0651279
+# Top submission MAE is currently 0.0636602
+
+rss<-sum((train$pred_logerror_mean - train$logerror) ** 2)
+ss<-sum((train$logerror - mean(train$logerror)) ** 2)
+
+pred_by_mean_rsquare<-1-rss/ss
+
+sample_submission<-read.csv("sample_submission.csv")
+sample_submission$X201610<-round(mean(train$logerror),5)
+sample_submission$X201611<-round(mean(train$logerror),5)
+sample_submission$X201612<-round(mean(train$logerror),5)
+colnames(sample_submission)<-c("ParcelId","201610","201611","201612","201710","201711","201712")
+write.csv(x = sample_submission,file="submission1.csv", row.names=F, quote=F)
+```
+
+```{r linear_model}
+lm_vars<-missingness[missingness$var %in% numeric_vars & !(missingness$var == "logerror") & missingness$missingness==0,"var"]
+
+train.glm<-glm(as.formula(paste0("logerror ~ ",paste(lm_vars, collapse = " + "))), family=gaussian, data=train)
+
+train$pred_glm <- predict(train.glm, data=train, type="response")
+
+ggplot(train,aes(x=logerror,y=pred_glm)) + 
+  geom_point() +
+  geom_abline(slope=1) +
+  ylim(c(-1,1))
+
+pred_glm_MAE<-sum(abs(train$pred_glm - train$logerror))/nrow(train)
   
 rss<-sum((train$pred_logerror_mean - train$logerror) ** 2)
 ss<-sum((train$logerror - mean(train$logerror)) ** 2)
 
 pred_by_mean_rsquare<-1-rss/ss
+
+# To try:
+# Linear model that uses only missingness to estimate logerror
+# Linear model that uses combination of numeric data and missingness
+# Linear model that uses categorical data....somehow
+# Move on to ML models
+# Calculate missingness for each data point -- see if that correlates with logerror
+  # Can do this directly from the df_missingness binary matrix
 ```
