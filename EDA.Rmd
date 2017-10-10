@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,warning = F,message = F)
 
-packages<-c("data.table","corrplot","dplyr","ggplot2","magrittr","stringi","stringr","rebus","gridExtra","reshape2","ggmap","tidyr","caret")
+packages<-c("data.table","corrplot","dplyr","ggplot2","magrittr","stringi","stringr","rebus","gridExtra","reshape2","ggmap","tidyr","caret","xgboost","Matrix","ranger")
 
 for (i in packages){
   if(!require(i,character.only = T,quietly=T,warn.conflicts = F)){
@@ -17,31 +17,54 @@ for (i in packages){
   require(i,character.only = T,quietly=T,warn.conflicts = F)
 }
 
-properties<-read.csv("properties_2016.csv",stringsAsFactors = F)  # This takes a while...~3 million rows, 58 columns
-train<-read.csv("train_2016_v2.csv")
+properties_2016<-read.csv("properties_2016.csv",stringsAsFactors = F)  # This takes a while...~3 million rows, 58 columns
+properties_2017<-read.csv("properties_2017.csv",stringsAsFactors = F)
+
+#properties<-cbind(properties_2017,properties_2016)
+
+train_2016<-read.csv("train_2016_v2.csv")
+train_2017<-read.csv("train_2017.csv")
+
+
 ```
 
-# Training Data
+
+```{r}
+
+
+#properties_2016_subset<-properties_2016[,c("parcelid",names(properties_2016)[str_detect(names(properties_2016),pattern="tax" %R% or("value","amount"))])]
+#names(properties_2016_subset)<-c("parcelid",paste0(names(properties_2016_subset)[2:ncol(properties_2016_subset)],"_2016"))
+#properties<-merge(properties_2017,properties_2016_subset,by="parcelid")
+
+
+```
+
+# training Data
 
 ## Tidying
 
 Tidy the training data by merging with the metadata and coercing numeric ID variables to factors.
 
 ```{r train_variable_class, echo=F}
-train<-merge(train,properties,by="parcelid")
-factor_vars <- str_subset(names(train),pattern="id")
+train_2016<-merge(train_2016,properties_2016,by="parcelid")
+factor_vars <- str_subset(names(train_2016),pattern="id")
 factor_vars <- c(factor_vars,"fips","propertycountylandusecode","propertyzoningdesc","rawcensustractandblock","censustractandblock")
-train[,factor_vars]<-lapply(train[,factor_vars],factor)
-str(train)
+train_2016[,factor_vars]<-lapply(train_2016[,factor_vars],factor)
+#str(train_2016)
+
+train_2017<-merge(train_2017,properties_2017,by="parcelid")
+factor_vars <- str_subset(names(train_2017),pattern="id")
+factor_vars <- c(factor_vars,"fips","propertycountylandusecode","propertyzoningdesc","rawcensustractandblock","censustractandblock")
+train_2017[,factor_vars]<-lapply(train_2017[,factor_vars],factor)
 ```
 
 ### Missingness and Imputation
 
 Calculate the missingness for each variable by counting the NA or empty string observations. Impute values based on other correlating variables.
 
-```{r train_missingness, include=FALSE}
+```{r train_2016_missingness, include=FALSE}
 # Count the number of NAs or empty strings in each column of properties_2016
-missingness<-lapply(train,function(x){
+missingness_2016_preimputation<-lapply(train_2016,function(x){
     ifelse(is.character(x),
           sum(str_detect(x,pattern=START %R% END)),
           sum(is.na(x))
@@ -49,16 +72,16 @@ missingness<-lapply(train,function(x){
 })
 
 # Format missingness
-missingness<-round(unlist(missingness)/nrow(train)*100,2)
-missingness<-sort(missingness,decreasing=T)
-missingness<-as.data.frame(missingness)
-missingness$var<-row.names(missingness)
-row.names(missingness)<-seq(1:nrow(missingness))
-missingness<-select(missingness,c("var","missingness"))
-missingness<-missingness %>% mutate(category = lapply(missingness,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
-missingness$category<-as.character(missingness$category)
+missingness_2016_preimputation<-round(unlist(missingness_2016_preimputation)/nrow(train_2016)*100,3)
+missingness_2016_preimputation<-sort(missingness_2016_preimputation,decreasing=T)
+missingness_2016_preimputation<-as.data.frame(missingness_2016_preimputation)
+missingness_2016_preimputation$var<-row.names(missingness_2016_preimputation)
+row.names(missingness_2016_preimputation)<-seq(1:nrow(missingness_2016_preimputation))
+missingness_2016_preimputation<-select(missingness_2016_preimputation,c("var","missingness_2016_preimputation"))
+missingness_2016_preimputation<-missingness_2016_preimputation %>% mutate(category = lapply(missingness_2016_preimputation,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
+missingness_2016_preimputation$category<-as.character(missingness_2016_preimputation$category)
 
-p1 <- ggplot(missingness,aes(x=reorder(var, missingness),y=missingness,fill=category)) +
+p1 <- ggplot(missingness_2016_preimputation,aes(x=reorder(var, missingness_2016_preimputation),y=missingness_2016_preimputation,fill=category)) +
   geom_col() +
   scale_fill_manual(breaks=c(">95%",">=5%, <=95%","<5%"),values=c("blue","black","red")) +
   scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
@@ -70,50 +93,118 @@ p1 <- ggplot(missingness,aes(x=reorder(var, missingness),y=missingness,fill=cate
 
 p1
 
-# Check if missingness is associated with logerror
-character_variables<-names(which(sapply(train, class) == "character")) # Get names of all columns whose entries are characters
+missingness_2017_preimputation<-lapply(train_2017,function(x){
+    ifelse(is.character(x),
+          sum(str_detect(x,pattern=START %R% END)),
+          sum(is.na(x))
+  )
+})
 
-tmp1<-as.data.frame(is.na(train[,!(names(train) %in% character_variables)])) # Check if NA for all columns whose entries are not characters
-tmp2<-as.data.frame(lapply(train[,names(train) %in% character_variables],function(x){ 
+# Format missingness
+missingness_2017_preimputation<-round(unlist(missingness_2017_preimputation)/nrow(train_2017)*100,3)
+missingness_2017_preimputation<-sort(missingness_2017_preimputation,decreasing=T)
+missingness_2017_preimputation<-as.data.frame(missingness_2017_preimputation)
+missingness_2017_preimputation$var<-row.names(missingness_2017_preimputation)
+row.names(missingness_2017_preimputation)<-seq(1:nrow(missingness_2017_preimputation))
+missingness_2017_preimputation<-select(missingness_2017_preimputation,c("var","missingness_2017_preimputation"))
+missingness_2017_preimputation<-missingness_2017_preimputation %>% mutate(category = lapply(missingness_2017_preimputation,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
+missingness_2017_preimputation$category<-as.character(missingness_2017_preimputation$category)
+
+p2 <- ggplot(missingness_2017_preimputation,aes(x=reorder(var, missingness_2017_preimputation),y=missingness_2017_preimputation,fill=category)) +
+  geom_col() +
+  scale_fill_manual(breaks=c(">95%",">=5%, <=95%","<5%"),values=c("blue","black","red")) +
+  scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.major.x = element_blank(),legend.position = c(0.87,0.1),axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), axis.ticks.x=element_blank()) +
+  guides(fill=guide_legend(element_blank())) +
+  labs(y="Missingness (%)",x=element_blank()) +
+  coord_flip()
+
+p2
+
+names(missingness_2016_preimputation) <- c("var","missingness","category")
+missingness_2016_preimputation$year<-factor(2016)
+names(missingness_2017_preimputation) <- c("var","missingness","category")
+missingness_2017_preimputation$year<-factor(2017)
+
+missingness<-rbind(missingness_2016_preimputation,missingness_2017_preimputation)
+
+ggplot(missingness) +
+  geom_col(aes(x=reorder(var,missingness),y=missingness,fill=year),position="dodge") +
+  coord_flip() +
+  scale_fill_brewer(palette = "Set1")
+
+# Check if missingness is associated with logerror
+character_variables<-names(which(sapply(train_2016, class) == "character")) # Get names of all columns whose entries are characters
+
+tmp1<-as.data.frame(is.na(train_2016[,!(names(train_2016) %in% character_variables)])) # Check if NA for all columns whose entries are not characters
+tmp2<-as.data.frame(lapply(train_2016[,names(train_2016) %in% character_variables],function(x){ 
   str_detect(x,pattern = START %R% END)
 }))  # Check if empty string for all columns whose entries are characters
 df_missing<-cbind(tmp1,tmp2)
-names(df_missing)<-names(select(df_missing,names(train))) # reorder to same order as train
+names(df_missing)<-names(select(df_missing,names(train_2016))) # reorder to same order as train_2016
 df_missing<-sapply(df_missing,as.numeric)
 cor_missing<-cor(df_missing)
 cor_missing<-cor_missing[which(lapply(as.data.frame(df_missing),sum) > 1),which(lapply(as.data.frame(df_missing),sum) > 1)]
 
 corrplot(cor_missing,type="lower", title="Correlation of the Missingness of Variables",order="hclust") 
 
-cor_logerror_missing<-cor(df_missing,train$logerror)
+cor_logerror_missing<-cor(df_missing,train_2016$logerror)
 cor_logerror_missing<-cor_logerror_missing[!is.na(cor_logerror_missing),]
 cor_logerror_missing<-as.data.frame(cor_logerror_missing)
 cor_logerror_missing$type<-row.names(cor_logerror_missing)
 
-ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), y=abs(cor_logerror_missing),fill=ifelse(cor_logerror_missing < 0, "Negative","Positive"))) +
+p1<-ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), y=abs(cor_logerror_missing),fill=ifelse(cor_logerror_missing < 0, "Negative","Positive"))) +
   geom_col() +
   scale_fill_brewer(palette = "Set1") +
   coord_flip() +
   guides(fill=guide_legend("Direction of\nCorrelation")) +
   labs(y= "Absolute Value of Correlation with Log Error", x="")
+
+# Missingness of number of stories is fairly well associated with logerror for 2016 data
+
+tmp1<-as.data.frame(is.na(train_2017[,!(names(train_2017) %in% character_variables)])) # Check if NA for all columns whose entries are not characters
+tmp2<-as.data.frame(lapply(train_2017[,names(train_2017) %in% character_variables],function(x){ 
+  str_detect(x,pattern = START %R% END)
+}))  # Check if empty string for all columns whose entries are characters
+df_missing_2017<-cbind(tmp1,tmp2)
+names(df_missing_2017)<-names(select(df_missing_2017,names(train_2017))) # reorder to same order as train_2016
+df_missing_2017<-sapply(df_missing_2017,as.numeric)
+cor_missing_2017<-cor(df_missing_2017)
+cor_missing_2017<-cor_missing_2017[which(lapply(as.data.frame(df_missing_2017),sum) > 1),which(lapply(as.data.frame(df_missing_2017),sum) > 1)]
+
+corrplot(cor_missing_2017,type="lower", title="Correlation of the Missingness of Variables",order="hclust") 
+
+cor_logerror_missing<-cor(df_missing,train_2016$logerror)
+cor_logerror_missing<-cor_logerror_missing[!is.na(cor_logerror_missing),]
+cor_logerror_missing<-as.data.frame(cor_logerror_missing)
+cor_logerror_missing$type<-row.names(cor_logerror_missing)
+
+p1<-ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), y=abs(cor_logerror_missing),fill=ifelse(cor_logerror_missing < 0, "Negative","Positive"))) +
+  geom_col() +
+  scale_fill_brewer(palette = "Set1") +
+  coord_flip() +
+  guides(fill=guide_legend("Direction of\nCorrelation")) +
+  labs(y= "Absolute Value of Correlation with Log Error", x="")
+
 ```
 
 ```{r distance_matrix, include=F}
-imputed_train<-train
+imputed_train_2016<-train_2016
 
-p<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidcounty)) +
+p<-ggplot(imputed_train_2016, aes(x=latitude,y=longitude,color=regionidcounty)) +
   geom_point() +
   theme(legend.position = "none")
 
-q1<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidcity)) +
+q1<-ggplot(imputed_train_2016, aes(x=latitude,y=longitude,color=regionidcity)) +
   geom_point() +
   theme(legend.position = "none")
 
-r1<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidzip)) +
+r1<-ggplot(imputed_train_2016, aes(x=latitude,y=longitude,color=regionidzip)) +
   geom_point() +
   theme(legend.position = "none")
 
-s1<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidneighborhood)) +
+s1<-ggplot(imputed_train_2016, aes(x=latitude,y=longitude,color=regionidneighborhood)) +
   geom_point() +
   theme(legend.position = "none")
 
@@ -123,7 +214,7 @@ s1<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidneighborhood)
 # There are no entries that contain a neighborhood but /not/ a city or zip
 # All entries have county id
 
-region_table<-table(imputed_train$regionidcity,imputed_train$regionidzip)
+region_table<-table(imputed_train_2016$regionidcity,imputed_train_2016$regionidzip)
 melted_region_table<-melt(region_table)
 names(melted_region_table)<-c("regionidcity","regionidzip","frequency")
 melted_region_table<-melted_region_table[!(melted_region_table$frequency == 0),]
@@ -133,44 +224,45 @@ unique_zips<-names(which(table(melted_region_table$regionidzip) == 1)) # Zip cod
 zip_key<-melted_region_table[melted_region_table$regionidzip %in% unique_zips,1:2] # Create a key to associate Zip with city
 
 # Check if there are entries that have zip but no city, and their zip is uniquely associated with one city
-dim(imputed_train[is.na(imputed_train$regionidcity) & imputed_train$regionidzip %in% unique_zips,]) # 779 entries have a zip code uniquely associated with 1 city, but no city data
-m<-match(imputed_train[is.na(imputed_train$regionidcity) & imputed_train$regionidzip %in% unique_zips,"regionidzip"],zip_key$regionidzip)
-imputed_train[is.na(imputed_train$regionidcity) & imputed_train$regionidzip %in% unique_zips,"regionidcity"] <- zip_key$regionidcity[m]
+dim(imputed_train_2016[is.na(imputed_train_2016$regionidcity) & imputed_train_2016$regionidzip %in% unique_zips,]) # 472 entries have a zip code uniquely associated with 1 city, but no city data
+m<-match(imputed_train_2016[is.na(imputed_train_2016$regionidcity) & imputed_train_2016$regionidzip %in% unique_zips,"regionidzip"],zip_key$regionidzip)
+imputed_train_2016[is.na(imputed_train_2016$regionidcity) & imputed_train_2016$regionidzip %in% unique_zips,"regionidcity"] <- zip_key$regionidcity[m]
 
 # Check if there are entries that have city but no zip, and their city is uniquely associated with one zip
-dim(imputed_train[is.na(imputed_train$regionidzip) & imputed_train$regionidcity %in% unique_cities,]) # 5 entries have a zip code uniquely associated with 1 city, but no city data
-m<-match(imputed_train[is.na(imputed_train$regionidzip) & imputed_train$regionidcity %in% unique_cities,"regionidcity"],city_key$regionidcity)
-imputed_train[is.na(imputed_train$regionidzip) & imputed_train$regionidcity %in% unique_cities,"regionidzip"] <- city_key$regionidzip[m]
+dim(imputed_train_2016[is.na(imputed_train_2016$regionidzip) & imputed_train_2016$regionidcity %in% unique_cities,]) # 0 entries have a zip code uniquely associated with 1 city, but no city data
+m<-match(imputed_train_2016[is.na(imputed_train_2016$regionidzip) & imputed_train_2016$regionidcity %in% unique_cities,"regionidcity"],city_key$regionidcity)
+imputed_train_2016[is.na(imputed_train_2016$regionidzip) & imputed_train_2016$regionidcity %in% unique_cities,"regionidzip"] <- city_key$regionidzip[m]
 
 
 # Use combination of city and zip to impute neighborhood
-neighborhoods<-unique(imputed_train[,c("regionidcity","regionidzip","regionidneighborhood")])
+neighborhoods<-unique(imputed_train_2016[,c("regionidcity","regionidzip","regionidneighborhood")])
 neighborhoods<-neighborhoods[!(is.na(neighborhoods$regionidcity) | is.na(neighborhoods$regionidzip) | is.na(neighborhoods$regionidneighborhood)),]
 neighborhoods<-unite(neighborhoods,col="city_zip",regionidcity,regionidzip,sep=".")
 neighborhoods$city_zip<-factor(neighborhoods$city_zip)
 
 m<-match(
-  as.factor((imputed_train %>%
-    filter(!is.na(regionidcity), !is.na(regionidzip), is.na(regionidneighborhood)) %>%
+  as.factor(
+    (imputed_train_2016 %>%
+    dplyr::filter(!is.na(imputed_train_2016$regionidcity), !is.na(imputed_train_2016$regionidzip), is.na(imputed_train_2016$regionidneighborhood)) %>%
     unite("city_zip",regionidcity,regionidzip,sep=".") %>%
-    filter(city_zip %in% neighborhoods$city_zip) %>%
+    dplyr::filter(city_zip %in% neighborhoods$city_zip) %>%
     as.data.frame())$city_zip),
   neighborhoods$city_zip
 )
 
-imputed_train[!(is.na(imputed_train$regionidcity) | is.na(imputed_train$regionidzip)) & is.na(imputed_train$regionidneighborhood) & (unite(imputed_train,"city_zip",regionidcity,regionidzip,sep="."))$city_zip %in% neighborhoods$city_zip ,"regionidneighborhood"] <- neighborhoods$regionidneighborhood[m]
+imputed_train_2016[!(is.na(imputed_train_2016$regionidcity) | is.na(imputed_train_2016$regionidzip)) & is.na(imputed_train_2016$regionidneighborhood) & (unite(imputed_train_2016,"city_zip",regionidcity,regionidzip,sep="."))$city_zip %in% neighborhoods$city_zip ,"regionidneighborhood"] <- neighborhoods$regionidneighborhood[m]
 
 #city, zip, and neighborhood have been imputed as much as they can be with the information known about city and zip.
 
-q2<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidcity)) +
+q2<-ggplot(imputed_train_2016, aes(x=latitude,y=longitude,color=regionidcity)) +
   geom_point() +
   theme(legend.position = "none")
 
-r2<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidzip)) +
+r2<-ggplot(imputed_train_2016, aes(x=latitude,y=longitude,color=regionidzip)) +
   geom_point() +
   theme(legend.position = "none")
 
-s2<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidneighborhood)) +
+s2<-ggplot(imputed_train_2016, aes(x=latitude,y=longitude,color=regionidneighborhood)) +
   geom_point() +
   theme(legend.position = "none")
 
@@ -178,28 +270,28 @@ grid.arrange(q1,r1,s1,q2,r2,s2,ncol=3)
 
 #Create distance matrix using latitude and longitude coordinates so that regional values may be imputed based on k nearest neighbors
 
-coordinates<-train[,c("longitude","latitude")]
+coordinates<-train_2016[,c("longitude","latitude")]
 
 coordinates$latitude<-as.numeric(str_replace(coordinates$latitude, pattern=capture(dgt(2)) %R% capture(one_or_more(DGT)),replacement=REF1 %R% DOT %R% REF2))
 coordinates$longitude<-as.numeric(str_replace(coordinates$longitude, pattern=capture("-" %R% dgt(3)) %R% capture(one_or_more(DGT)),replacement=REF1 %R% DOT %R% REF2))
 
-zip_na<-which(is.na(imputed_train$regionidzip))
+zip_na<-which(is.na(imputed_train_2016$regionidzip))
 
-samples<-sample(which(((imputed_train$longitude > -118000000 & imputed_train$latitude<33900000) | (imputed_train$longitude < -118750000 & imputed_train$latitude >34100000)) & !is.na(imputed_train$regionidzip)),10000)
+samples<-sample(which(!is.na(imputed_train_2016$regionidzip)),10000)
 
 distance_mat<-matrix(NA, nrow=length(zip_na),ncol=length(samples))
 
-ggplot(imputed_train[c(samples,zip_na),], aes(x=latitude,y=longitude,color=regionidzip)) +
+ggplot(imputed_train_2016[c(samples,zip_na),], aes(x=latitude,y=longitude,color=regionidzip)) +
   geom_point() +
   theme(legend.position = "none")
 
-ggplot(imputed_train[zip_na,], aes(x=latitude,y=longitude)) +
+ggplot(imputed_train_2016[zip_na,], aes(x=latitude,y=longitude)) +
   geom_point() +
   theme(legend.position = "none")
 
-ggplot(imputed_train[which((imputed_train$longitude > -118000000 & imputed_train$latitude<33900000) | (imputed_train$longitude < -118750000 & imputed_train$latitude >34100000)),], aes(x=latitude,y=longitude, color=regionidzip)) +
-  geom_point() +
-  theme(legend.position = "none")
+#ggplot(imputed_train_2016[which((imputed_train_2016$longitude > -118000000 & imputed_train_2016$latitude<33900000) | (imputed_train_2016$longitude < -118750000 & imputed_train_2016$latitude >34100000)),], aes(x=latitude,y=longitude, color=regionidzip)) +
+#  geom_point() +
+#  theme(legend.position = "none")
 
 for (i in 1:length(zip_na)){
   for (j in 1:length(samples)){
@@ -210,20 +302,26 @@ for (i in 1:length(zip_na)){
 
 distance_mat<-as.data.frame(distance_mat)
 names(distance_mat)<-samples
+row.names(distance_mat)<-zip_na
+
+# Impute zip based on coordinates, but ignore entries whose coordinates are not available
 
 for(i in 1:length(zip_na)){
-imputed_train[zip_na[i],"regionidzip"]<-factor(names(which.max(table(as.character(imputed_train[names(sort(distance_mat[i,])[1:10]),"regionidzip"])))))
+  if(!is.na(distance_mat[i,1])){
+      imputed_train_2016[zip_na[i],"regionidzip"]<-
+        factor(names(which.max(table(as.character(imputed_train_2016[names(sort(distance_mat[i,])[1:11]),"regionidzip"])))))
+  }
 }
-# All zips are imputed
 
 # Impute 23 more city IDs by matching with unique zips
-m<-match(imputed_train[is.na(imputed_train$regionidcity) & imputed_train$regionidzip %in% unique_zips,"regionidzip"],zip_key$regionidzip)
-imputed_train[is.na(imputed_train$regionidcity) & imputed_train$regionidzip %in% unique_zips,"regionidcity"] <- zip_key$regionidcity[m]
+m<-match(imputed_train_2016[is.na(imputed_train_2016$regionidcity) & imputed_train_2016$regionidzip %in% unique_zips,"regionidzip"],zip_key$regionidzip)
+imputed_train_2016[is.na(imputed_train_2016$regionidcity) & imputed_train_2016$regionidzip %in% unique_zips,"regionidcity"] <- zip_key$regionidcity[m]
 
 # Impute the remaining 1004 missing city data by coordinates
-city_na<-which(is.na(imputed_train$regionidcity))
+city_na<-which(is.na(imputed_train_2016$regionidcity))
 
-samples<-sample(which(!is.na(imputed_train$regionidcity)),10000)
+samples<-sample(which(!is.na(imputed_train_2016$regionidcity)),10000)
+
 distance_mat<-matrix(NA, nrow=length(city_na),ncol=length(samples))
 
 for (i in 1:length(city_na)){
@@ -237,67 +335,69 @@ distance_mat<-as.data.frame(distance_mat)
 names(distance_mat)<-samples
 
 for(i in 1:length(city_na)){
-  imputed_train[city_na[i],"regionidcity"]<-factor(names(which.max(table(as.character(imputed_train[names(sort(distance_mat[i,])[1:10]),"regionidcity"])))))
+  imputed_train_2016[city_na[i],"regionidcity"]<-factor(names(which.max(table(as.character(imputed_train_2016[names(sort(distance_mat[i,])[1:10]),"regionidcity"])))))
 }
 # All cities are imputed
 
 m<-match(
-  as.factor((imputed_train %>%
-    filter(!is.na(regionidcity), !is.na(regionidzip), is.na(regionidneighborhood)) %>%
+  as.factor((imputed_train_2016 %>%
+    dplyr::filter(!is.na(regionidcity), !is.na(regionidzip), is.na(regionidneighborhood)) %>%
     unite("city_zip",regionidcity,regionidzip,sep=".") %>%
-    filter(city_zip %in% neighborhoods$city_zip) %>%
+    dplyr::filter(city_zip %in% neighborhoods$city_zip) %>%
     as.data.frame())$city_zip),
   neighborhoods$city_zip
 )
 
-imputed_train[!(is.na(imputed_train$regionidcity) | is.na(imputed_train$regionidzip)) & is.na(imputed_train$regionidneighborhood) & (unite(imputed_train,"city_zip",regionidcity,regionidzip,sep="."))$city_zip %in% neighborhoods$city_zip ,"regionidneighborhood"] <- neighborhoods$regionidneighborhood[m]
+imputed_train_2016[!(is.na(imputed_train_2016$regionidcity) | is.na(imputed_train_2016$regionidzip)) & is.na(imputed_train_2016$regionidneighborhood) & (unite(imputed_train_2016,"city_zip",regionidcity,regionidzip,sep="."))$city_zip %in% neighborhoods$city_zip ,"regionidneighborhood"] <- neighborhoods$regionidneighborhood[m]
 
 
-q3<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidcity)) +
+q3<-ggplot(imputed_train_2016, aes(x=latitude,y=longitude,color=regionidcity)) +
   geom_point() +
   theme(legend.position = "none")
 
-r3<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidzip)) +
+r3<-ggplot(imputed_train_2016, aes(x=latitude,y=longitude,color=regionidzip)) +
   geom_point() +
   theme(legend.position = "none")
 
-s3<-ggplot(imputed_train, aes(x=latitude,y=longitude,color=regionidneighborhood)) +
+s3<-ggplot(imputed_train_2016, aes(x=latitude,y=longitude,color=regionidneighborhood)) +
   geom_point() +
   theme(legend.position = "none")
 
 grid.arrange(q1,r1,s1,q2,r2,s2,q3,r3,s3,ncol=3)
 ```
 
-```{r train_imputation}
-imputed_train$taxdelinquencyflag <- ifelse(imputed_train$taxdelinquencyflag == "Y",TRUE,FALSE)
-imputed_train[!is.na(imputed_train$taxdelinquencyyear) & imputed_train$taxdelinquencyyear == 0,"taxdelinquencyyear"] <- NA
+```{r train_2016_imputation}
 
-imputed_train[!is.na(imputed_train$fireplacecnt),"fireplaceflag"]<-TRUE
-imputed_train[imputed_train$fireplaceflag == "true","fireplaceflag"] <- TRUE
-imputed_train$fireplaceflag <- as.logical(imputed_train$fireplaceflag)
 
-imputed_train[!is.na(imputed_train$basementsqft),"basement"] <- TRUE
-imputed_train<-imputed_train[,!(names(imputed_train) == "storytypeid")] # Only storytypeid is "basement" and completely overlaps with basementsqft values - created new value called "basement" that is logical and removing storytypeid
+imputed_train_2016$taxdelinquencyflag <- ifelse(imputed_train_2016$taxdelinquencyflag == "Y",TRUE,FALSE)
+imputed_train_2016[!is.na(imputed_train_2016$taxdelinquencyyear) & imputed_train_2016$taxdelinquencyyear == 0,"taxdelinquencyyear"] <- NA
 
-imputed_train[!is.na(imputed_train$poolcnt) | !is.na(imputed_train$poolsizesum) | !is.na(imputed_train$pooltypeid10) | !is.na(imputed_train$pooltypeid2) | !is.na(imputed_train$pooltypeid7),"pool"] <- TRUE
-imputed_train$pooltypeid10<-as.logical(ifelse(imputed_train$pooltypeid10 == 1, TRUE, NA))
-imputed_train$pooltypeid7<-as.logical(ifelse(imputed_train$pooltypeid7 == 1, TRUE, NA))
-imputed_train$pooltypeid2<-as.logical(ifelse(imputed_train$pooltypeid2 == 1, TRUE, NA))
+imputed_train_2016[!is.na(imputed_train_2016$fireplacecnt),"fireplaceflag"]<-TRUE
+imputed_train_2016[imputed_train_2016$fireplaceflag == "true","fireplaceflag"] <- TRUE
+imputed_train_2016$fireplaceflag <- as.logical(imputed_train_2016$fireplaceflag)
 
-imputed_train[!is.na(imputed_train$pooltypeid10) | !is.na(imputed_train$pooltypeid7),"pooltypeid2"] <- FALSE
-imputed_train[!is.na(imputed_train$pooltypeid10) | !is.na(imputed_train$pooltypeid2),"pooltypeid7"] <- FALSE
-imputed_train[!is.na(imputed_train$pooltypeid7) | !is.na(imputed_train$pooltypeid2),"pooltypeid10"] <- FALSE
+imputed_train_2016[!is.na(imputed_train_2016$basementsqft),"basement"] <- TRUE
+imputed_train_2016<-imputed_train_2016[,!(names(imputed_train_2016) == "storytypeid")] # Only storytypeid is "basement" and completely overlaps with basementsqft values - created new value called "basement" that is logical and removing storytypeid
 
-imputed_train<-imputed_train[,!(names(imputed_train) %in% c("poolcnt","hashottuborspa"))] # These are redundant with "pool" and "poolytpeid2/10", which both include information about hottub or spa
+imputed_train_2016[!is.na(imputed_train_2016$poolcnt) | !is.na(imputed_train_2016$poolsizesum) | !is.na(imputed_train_2016$pooltypeid10) | !is.na(imputed_train_2016$pooltypeid2) | !is.na(imputed_train_2016$pooltypeid7),"pool"] <- TRUE
+imputed_train_2016$pooltypeid10<-as.logical(ifelse(imputed_train_2016$pooltypeid10 == 1, TRUE, NA))
+imputed_train_2016$pooltypeid7<-as.logical(ifelse(imputed_train_2016$pooltypeid7 == 1, TRUE, NA))
+imputed_train_2016$pooltypeid2<-as.logical(ifelse(imputed_train_2016$pooltypeid2 == 1, TRUE, NA))
+
+imputed_train_2016[!is.na(imputed_train_2016$pooltypeid10) | !is.na(imputed_train_2016$pooltypeid7),"pooltypeid2"] <- FALSE
+imputed_train_2016[!is.na(imputed_train_2016$pooltypeid10) | !is.na(imputed_train_2016$pooltypeid2),"pooltypeid7"] <- FALSE
+imputed_train_2016[!is.na(imputed_train_2016$pooltypeid7) | !is.na(imputed_train_2016$pooltypeid2),"pooltypeid10"] <- FALSE
+
+imputed_train_2016<-imputed_train_2016[,!(names(imputed_train_2016) %in% c("poolcnt","hashottuborspa"))] # These are redundant with "pool" and "poolytpeid2/10", which both include information about hottub or spa
 
 # Impute unit count based on propertly land use type ID
-imputed_train[imputed_train$propertylandusetypeid == 246 & is.na(imputed_train$unitcnt),"unitcnt"]<-2
-imputed_train[imputed_train$propertylandusetypeid == 247 & is.na(imputed_train$unitcnt),"unitcnt"]<-3
-imputed_train[imputed_train$propertylandusetypeid == 248 & is.na(imputed_train$unitcnt),"unitcnt"]<-4
+imputed_train_2016[imputed_train_2016$propertylandusetypeid == 246 & is.na(imputed_train_2016$unitcnt),"unitcnt"]<-2
+imputed_train_2016[imputed_train_2016$propertylandusetypeid == 247 & is.na(imputed_train_2016$unitcnt),"unitcnt"]<-3
+imputed_train_2016[imputed_train_2016$propertylandusetypeid == 248 & is.na(imputed_train_2016$unitcnt),"unitcnt"]<-4
 ```
 
-```{r train_recalculate_missingness,}
-missingness<-lapply(imputed_train,function(x){
+```{r train_2016_recalculate_missingness,}
+missingness<-lapply(imputed_train_2016,function(x){
     ifelse(is.character(x),
           sum(str_detect(x,pattern=START %R% END)),
           sum(is.na(x))
@@ -307,9 +407,9 @@ missingness<-lapply(imputed_train,function(x){
 # Format missingness
 missingness<-as.numeric(missingness)
 missingness<-as.data.frame(missingness)
-missingness$var<-colnames(imputed_train)
+missingness$var<-colnames(imputed_train_2016)
 missingness<-missingness[order(missingness$missingness,decreasing=T),]
-missingness$percent<-round(missingness$missingness/nrow(train)*100,3)
+missingness$percent<-round(missingness$missingness/nrow(train_2016)*100,3)
 row.names(missingness)<-seq(1:nrow(missingness))
 missingness<-select(missingness,c("var","missingness","percent"))
 
@@ -334,11 +434,11 @@ p2
 
 ### Correlation
 
-```{r pressure, echo=FALSE}
+```{r correlation}
 # calculate correlations of variables
-numeric_vars<-names(which(lapply(imputed_train,is.numeric) == TRUE))
+numeric_vars<-names(which(lapply(imputed_train_2016,is.numeric) == TRUE))
 numeric_vars<-numeric_vars[!(numeric_vars %in% c("basementsqft","finishedsquarefeet13","assessmentyear","finishedsquarefeet15","finishedsquarefeet6","threequarterbathnbr","unitcnt"))]
-M <- cor(imputed_train[,names(imputed_train) %in% numeric_vars],use="pairwise.complete.obs")
+M <- cor(imputed_train_2016[,names(imputed_train_2016) %in% numeric_vars],use="pairwise.complete.obs")
 corrplot(M,type="lower",order="hclust")
 # None of the numberic variables are correlated with logerror
 ```
@@ -347,53 +447,215 @@ corrplot(M,type="lower",order="hclust")
 
 #### Predict the Mean
 ```{r pred_by_mean}
-train$pred_logerror_mean<-mean(train$logerror)
-ggplot(train,aes(x=logerror,y=pred_logerror_mean)) + 
+train_2016$pred_logerror_mean<-mean(train_2016$logerror)
+ggplot(train_2016,aes(x=logerror,y=pred_logerror_mean)) + 
   geom_point() +
   geom_abline(slope=1) +
   ylim(c(-5,5))
 
-pred_by_mean_MAE<-sum(abs(train$pred_logerror_mean - train$logerror))/nrow(train)
+pred_by_mean_MAE<-sum(abs(train_2016$pred_logerror_mean - train_2016$logerror))/nrow(train_2016)
 # Actual MAE from sample submission is 0.0651279
 # Top submission MAE is currently 0.0636602
 
-rss<-sum((train$pred_logerror_mean - train$logerror) ** 2)
-ss<-sum((train$logerror - mean(train$logerror)) ** 2)
+rss<-sum((train_2016$pred_logerror_mean - train_2016$logerror) ** 2)
+ss<-sum((train_2016$logerror - mean(train_2016$logerror)) ** 2)
 
 pred_by_mean_rsquare<-1-rss/ss
 
 sample_submission<-read.csv("sample_submission.csv")
-sample_submission$X201610<-round(mean(train$logerror),5)
-sample_submission$X201611<-round(mean(train$logerror),5)
-sample_submission$X201612<-round(mean(train$logerror),5)
+sample_submission$X201610<-round(mean(train_2016$logerror),5)
+sample_submission$X201611<-round(mean(train_2016$logerror),5)
+sample_submission$X201612<-round(mean(train_2016$logerror),5)
 colnames(sample_submission)<-c("ParcelId","201610","201611","201612","201710","201711","201712")
 write.csv(x = sample_submission,file="submission1.csv", row.names=F, quote=F)
+```
+
+```{r}
+
+
 ```
 
 ```{r linear_model}
 lm_vars<-missingness[missingness$var %in% numeric_vars & !(missingness$var == "logerror") & missingness$missingness==0,"var"]
 
-train.glm<-glm(as.formula(paste0("logerror ~ ",paste(lm_vars, collapse = " + "))), family=gaussian, data=train)
+train_2016.glm<-glm(as.formula(paste0("logerror ~ ",paste(lm_vars, collapse = " + "))), family=gaussian, data=train_2016)
 
-train$pred_glm <- predict(train.glm, data=train, type="response")
+train_2016$pred_glm <- predict(train_2016.glm, data=train_2016, type="response")
 
-ggplot(train,aes(x=logerror,y=pred_glm)) + 
+ggplot(train_2016,aes(x=logerror,y=pred_glm)) + 
   geom_point() +
   geom_abline(slope=1) +
   ylim(c(-1,1))
 
-pred_glm_MAE<-sum(abs(train$pred_glm - train$logerror))/nrow(train)
-  
-rss<-sum((train$pred_logerror_mean - train$logerror) ** 2)
-ss<-sum((train$logerror - mean(train$logerror)) ** 2)
+pred_glm_MAE<-sum(abs(train_2016$pred_glm - train_2016$logerror))/nrow(train_2016)
+# Performs better than average: actual MAE from sample submission is 0.0649832
 
-pred_by_mean_rsquare<-1-rss/ss
+properties_2016$glm_pred<-predict(train_2016.glm, newdata = properties_2016, type="response")
+
+properties_2016[is.na(properties_2016$glm_pred),"glm_pred"] <- mean(train_2016$logerror)
+
+sample_submission<-read.csv("sample_submission.csv")
+sample_submission$ParcelId<-properties_2016$parcelid
+sample_submission$X201610<-round(properties_2016$glm_pred,5)
+sample_submission$X201611<-round(properties_2016$glm_pred,5)
+sample_submission$X201612<-round(properties_2016$glm_pred,5)
+colnames(sample_submission)<-c("ParcelId","201610","201611","201612","201710","201711","201712")
+write.csv(x = sample_submission,file="submission2.csv", row.names=F, quote=F)
+
+rss<-sum((train_2016$pred_glm - train_2016$logerror) ** 2)
+ss<-sum((train_2016$logerror - mean(train_2016$logerror)) ** 2)
+
+pred_by_glm_rsquare<-1-rss/ss
+
+train_2016.glm<-glm(as.formula(paste0("logerror ~ ",paste(lm_vars, collapse = " + "))), family=gaussian, data=imputed_train_2016)
+
+train_2016$pred_glm <- predict(train_2016.glm, data=train_2016, type="response")
+
+ggplot(train_2016,aes(x=logerror,y=pred_glm)) + 
+  geom_point() +
+  geom_abline(slope=1) +
+  ylim(c(-1,1))
+
+
+# One-hot encode county and/or subset county
+county<-train_2016[,c("parcelid","logerror","regionidcounty")]
+county$regionidcounty1286<-ifelse(county$regionidcounty == 1286,1,0)
+county$regionidcounty2061<-ifelse(county$regionidcounty == 2061,1,0)
+county$regionidcounty3101<-ifelse(county$regionidcounty == 3101,1,0)
+
+county_cor<-cor(county[,c("regionidcounty1286","regionidcounty2061","regionidcounty3101")],train$logerror)
+
+
 
 # To try:
-# Linear model that uses only missingness to estimate logerror
-# Linear model that uses combination of numeric data and missingness
+# Linear model that uses only missingness to estimate logerror - DONE 
+# Linear model that uses combination of numeric data and missingness - DONE
 # Linear model that uses categorical data....somehow
 # Move on to ML models
-# Calculate missingness for each data point -- see if that correlates with logerror
-  # Can do this directly from the df_missingness binary matrix
+# Calculate total missingness for each data point -- see if that correlates with logerror - DONE
+# Check how transaction date affects the logerror
+# Check correlation of county with the other variables and the logerror
+```
+
+```{r lm_missingness}
+tmp<-as.data.frame(df_missing)
+tmp$logerror<-train_2016$logerror
+train_2016_missingness.glm<-glm(logerror ~ ., family=gaussian,data=tmp)
+train_2016$missingness_pred.glm<-predict(train_2016_missingness.glm, data=train_2016, type="response")
+
+ggplot(train_2016,aes(x=logerror,y=missingness_pred.glm)) + 
+  geom_point() +
+  geom_abline(slope=1)
+
+pred_missingness_MAE<-sum(abs(train_2016$missingness_pred.glm - train_2016$logerror))/nrow(train_2016)
+  
+rss<-sum((train_2016$pred_logerror_mean - train_2016$logerror) ** 2)
+ss<-sum((train_2016$logerror - mean(train_2016$logerror)) ** 2)
+
+pred_by_missingness_rsquare<-1-rss/ss
+
+
+train_2016_missingness.glm<-glm(logerror ~ numberofstories + landtaxvaluedollarcnt + taxamount + finishedsquarefeet6 + finishedsquarefeet50 + longitude + lotsizesquarefeet, family=gaussian,data=tmp)
+train_2016$missingness_pred.glm<-predict(train_2016_missingness.glm, data=train_2016, type="response")
+
+ggplot(train_2016,aes(x=logerror,y=missingness_pred.glm)) + 
+  geom_point() +
+  geom_abline(slope=1)
+
+pred_missingness_MAE<-sum(abs(train_2016$missingness_pred.glm - train_2016$logerror))/nrow(train_2016)
+# Performs better than average and better than model not including missingness: actual MAE from sample submission is 0.0649675
+  
+rss<-sum((train_2016$pred_logerror_mean - train_2016$logerror) ** 2)
+ss<-sum((train_2016$logerror - mean(train_2016$logerror)) ** 2)
+
+pred_by_missingness_rsquare<-1-rss/ss
+
+#####################################
+
+train_2016$total_missingness<-apply(as.data.frame(df_missing),1,sum)
+
+cor(train_2016$logerror,train_2016$total_missingness)
+
+missing_lm_vars<-c(lm_vars,"total_missingness")
+
+train_2016.glm<-glm(as.formula(paste0("logerror ~ ",paste(missing_lm_vars, collapse = " + "))), family=gaussian, data=train_2016)
+
+train_2016$pred_glm <- predict(train_2016.glm, data=train_2016, type="response")
+
+ggplot(train_2016,aes(x=logerror,y=pred_glm)) + 
+  geom_point() +
+  geom_abline(slope=1) +
+  ylim(c(-1,1))
+
+pre_missing_glm_MAE<-sum(abs(train_2016$pred_glm - train_2016$logerror))/nrow(train_2016)
+
+character_variables<-names(which(sapply(properties_2016, class) == "character")) # Get names of all columns whose entries are characters
+
+tmp1<-as.data.frame(is.na(properties_2016[,!(names(properties_2016) %in% character_variables)])) # Check if NA for all columns whose entries are not characters
+tmp2<-as.data.frame(lapply(properties_2016[,names(properties_2016) %in% character_variables],function(x){ 
+  str_detect(x,pattern = START %R% END)
+}))  # Check if empty string for all columns whose entries are characters
+properties_df_missing<-cbind(tmp1,tmp2)
+names(properties_df_missing)<-names(select(properties_df_missing,names(properties_2016))) # reorder to same order as train_2016
+properties_df_missing<-sapply(properties_df_missing,as.numeric)
+properties_df_missing<-properties_df_missing[,-59]
+
+properties_2016$total_missingness<-apply(as.data.frame(properties_df_missing),1,sum)
+
+properties_2016$pred_glm <- predict(train_2016.glm, newdata=properties_2016, type="response")
+
+properties_2016[is.na(properties_2016$pred_glm),"pred_glm"] <- mean(train_2016$logerror)
+
+sample_submission<-read.csv("sample_submission.csv")
+sample_submission$ParcelId<-properties_2016$parcelid
+sample_submission$X201610<-round(properties_2016$pred_glm,5)
+sample_submission$X201611<-round(properties_2016$pred_glm,5)
+sample_submission$X201612<-round(properties_2016$pred_glm,5)
+colnames(sample_submission)<-c("ParcelId","201610","201611","201612","201710","201711","201712")
+write.csv(x = sample_submission,file="submission3.csv", row.names=F, quote=F)
+
+
+##########################################################################
+
+tmp<-train_2016
+tmp$regionidcounty1286<-ifelse(tmp$regionidcounty == 1286,1,0)
+tmp$regionidcounty2061<-ifelse(tmp$regionidcounty == 2061,1,0)
+tmp$regionidcounty3101<-ifelse(tmp$regionidcounty == 3101,1,0)
+
+vars<-c(missing_lm_vars,"regionidcounty2061")
+
+train_2016.glm<-glm(as.formula(paste0("logerror ~ ",paste(vars, collapse = " + "))), family=gaussian, data=tmp)
+
+train_2016$pred_glm <- predict(train_2016.glm, data=tmp, type="response")
+
+ggplot(train_2016,aes(x=logerror,y=pred_glm)) + 
+  geom_point() +
+  geom_abline(slope=1)
+
+pred_glm_MAE<-sum(abs(train_2016$pred_glm - train_2016$logerror))/nrow(train_2016)
+# Performs better than average: actual MAE from sample submission is 0.0649832
+
+```
+
+```{r}
+vars<-c("bathroomcnt","bedroomcnt","latitude","longitude","roomcnt","total_missingness")
+  #"regionidcounty","regionidcity","regionidzip","propertyzoningdesc","propertylandusetypeid","propertycountylandusecode","fips","transactiondate","landtaxvaluedollarcnt","taxvaluedollarcnt","taxamount")
+forest<-ranger(as.formula(paste0("logerror ~ ",paste(vars, collapse = " + "))), data=na.omit(train_2016[,c("logerror",vars)]), num.trees=10000, respect.unordered.factors=TRUE)
+# Tried with 500, 1,000, and 10,000 trees and the MAE is still larger than with a glm, though it did decrease with more trees
+#    500 trees: MAE = 0.07187436
+#  1,000 trees: MAE = 0.07173303
+# 10,000 trees: MAE = 0.07159979
+#          GLM: MAE = 0.06839010
+
+dim(na.omit(train_2016[,c("parcelid",vars)]))
+train_2016[train_2016$parcelid %in% (na.omit(train_2016[,c("parcelid",vars)]))$parcelid,"forest_pred"]<-forest$predictions
+
+train_2016[is.na(train_2016$forest_pred),"forest_pred"]<-mean(train_2016$logerror)
+
+ggplot(train_2016,aes(x=logerror,y=forest_pred)) + 
+  geom_point() +
+  geom_abline(slope=1)
+
+sum(abs(train_2016$forest_pred - train_2016$logerror))/nrow(train_2016)
+
 ```
