@@ -40,13 +40,9 @@ Determine how to handle missing data and confirm that the classification methods
     + ~~Finish imputing zip and city via latitude/longitude coordinates~~ **done**
 * Remove features that have too much missing data
 
-### 4. Prepare Data for ML
-* Handle categorical variables
-* Subset training data into train and test
-    
-### 5. Develop and Evaluate Algorithms
+### 4. Develop and Evaluate Algorithms
 * ~~Predict the mean as a baseline~~ **done**
-* Linear model as secondary baseline
+* ~~Linear model as secondary baseline~~ **done**
 * Random forest
 
 ## To-do for Report:
@@ -54,5 +50,5 @@ Determine how to handle missing data and confirm that the classification methods
 * ~~Try ggmap to map properties~~ **done**
 
 #### Tables and figures:
-* Plot missingness
-* Make a table for RMSE and R^2 values to compare models 
+* ~~Plot missingness~~ **done**
+* Make a table for MAE (and R^2?) values to compare models 

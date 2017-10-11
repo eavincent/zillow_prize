@@ -51,7 +51,7 @@ labels<-c("Framing Type","Perimeter Living Area Sqft.","Type of Floors in Multi-
 
 p1 <- ggplot(missingness_2016_preimputation,aes(x=reorder(var, missingness_2016_preimputation),y=missingness_2016_preimputation,fill=category)) +
   geom_col() +
-  scale_fill_manual(breaks=c(">95%",">=5%, <=95%","<5%"),values=c("blue","black","red")) +
+  scale_fill_manual(breaks=c(">95%",">=5%, <=95%","<5%"),values=c("#377eb8","black","#e41a1c")) +
   scale_y_continuous(limits = c(NA,100),expand = c(0,0),breaks=c(0,25,50,75,99), labels=c("0","25","50","75","100")) +
   theme_bw() +
   theme(panel.grid = element_blank(),legend.position = c(0.9,0.1), axis.ticks=element_blank()) +
@@ -59,8 +59,37 @@ p1 <- ggplot(missingness_2016_preimputation,aes(x=reorder(var, missingness_2016_
   labs(y="Missingness (%)",x=element_blank()) +
   scale_x_discrete(breaks=missingness_2016_preimputation$var, labels=labels) +
   coord_flip()
+```
 
-p1
+```{r}
+character_variables<-names(which(sapply(train_2016, class) == "character")) # Get names of all columns whose entries are characters
+
+tmp1<-as.data.frame(is.na(train_2016[,!(names(train_2016) %in% character_variables)])) # Check if NA for all columns whose entries are not characters
+tmp2<-as.data.frame(lapply(train_2016[,names(train_2016) %in% character_variables],function(x){ 
+  str_detect(x,pattern = START %R% END)
+}))  # Check if empty string for all columns whose entries are characters
+df_missing<-cbind(tmp1,tmp2)
+names(df_missing)<-names(select(df_missing,names(train_2016))) # reorder to same order as train_2016
+df_missing<-sapply(df_missing,as.numeric)
+
+cor_logerror_missing<-cor(df_missing,train_2016$logerror)
+cor_logerror_missing<-cor_logerror_missing[!is.na(cor_logerror_missing),]
+cor_logerror_missing<-as.data.frame(cor_logerror_missing)
+cor_logerror_missing$type<-row.names(cor_logerror_missing)
+
+cor_logerror_missing<-merge(cor_logerror_missing,missingness_2016_preimputation,by.x="type",by.y="var")
+
+cor.test(abs(cor_logerror_missing$cor_logerror_missing),cor_logerror_missing$missingness_2016_preimputation)
+# Correlation is -0.245, but p=0.10
+
+p2<-ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), y=abs(cor_logerror_missing),fill=ifelse(cor_logerror_missing < 0, "Negative","Positive"))) +
+  geom_col() +
+  scale_fill_brewer(palette = "Set1") +
+  coord_flip() +
+  guides(fill=guide_legend("Direction of\nCorrelation")) +
+  labs(y= "Absolute Value of Correlation with Log Error", x="")
+
+grid.arrange(p1,p2,ncol=2)
 ```
 
 ```{r, fig.height=6, fig.width=8}
@@ -82,12 +111,5 @@ map <- get_googlemap(center=c(lon = -118.4, lat=34), zoom = 8, maptype = "roadma
 ggmap(map) +
   geom_point(aes(x = longitude, y = latitude,color=get_density(x=longitude,y=latitude)), data = coordinates) +
   scale_color_gradientn("Density",colors = c("blue4","blue","springgreen2","yellow","orange","red","red3"), breaks=c(0.1,3),labels=c("low","high")) +
-  theme(axis.text = element_blank(),axis.ticks = element_blank(),axis.title = element_blank(),legend.position = c(0.1,0.1),legend.background = element_blank())
+  theme(axis.text = element_blank(),axis.ticks = element_blank(),axis.title = element_blank(),legend.position = c(0.08,0.12),legend.background = element_blank())
 ```
-
-# 1. Tidy the Data
-
-# 2. Address Missingness
-
-# 3. Impute Missing Values
-Although at first glance it appears that many values have very high missingness, there are several instances in which "missing" data may actually be a negative response. For example, `taxdelinquencyflag` is missing for `r missingness[missingness$var == 'Taxdelinquencyflag','missingness']`% of observations, when in reality these are probably observations in which there has not been a tax delinquency flag. Therefore, I will not exclude tax delinquency tag or year based on missingness, but will impute the missing values for tax delinquency tag as negative responses.
