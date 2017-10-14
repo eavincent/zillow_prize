@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE,warning = F,message = F)
 
-packages<-c("data.table","corrplot","dplyr","ggplot2","magrittr","stringi","stringr","rebus","gridExtra","reshape2","ggmap","tidyr","caret","xgboost","Matrix","ranger")
+packages<-c("data.table","corrplot","dplyr","ggplot2","magrittr","stringi","stringr","rebus","gridExtra","reshape2","ggmap","tidyr","caret","xgboost","Matrix","ranger","ggcorrplot")
 
 for (i in packages){
   if(!require(i,character.only = T,quietly=T,warn.conflicts = F)){
@@ -23,26 +23,13 @@ properties_2017<-read.csv("properties_2017.csv",stringsAsFactors = F)
 train_2016<-read.csv("train_2016_v2.csv")
 train_2017<-read.csv("train_2017.csv")
 
-```
 
+label<-c("Framing Type","Perimeter Living Area Sqft.","Basement Sqft.","Type of Floors in Multi-Story House","Yard Building Sqft.","Fireplace, Y/N","Architecture Style","Construction Material","Unfinished and Finished Sqft.","Type of Deck","Pool Sqft.","Spa or Hot Tub, Y/N","Pool with Spa or Hot Tub, Y/N","Tax Delinquency, Y/N","Year of Tax Delinquency","Spa or Hot Tub, Y/N","Patio Sqft.","Total Sqft.","First Floor Living Area Sqft.","First Floor Living Area Sqft.","No. Fireplaces","No. 3/4 Baths","Pool without Spa or Hot Tub, Y/N","No. Pools","No. Stories","Type of Air Conditioning","No. Garages","Garage Sqft.","Neighborhood ID","Type of Heating System","Building Condition","No. Units","Lot Sqft.","Total Finished Living Area Sqft.","City ID","Total No. Baths","No. Full Baths","Year Built","Total Finished Living Area Sqft.","Census Tract and Block ID","Assessed Value of Structure","Zip Code","Total Property Tax","Total Tax Assessed Value of Parcel","Assessed Value of Land","Parcel ID","Log Error","Transaction Date","Total No. Baths","No. Bedrooms","FIPS Code","Longitude","Latitude","Zoning at County Level","Zoning","Description of Zoning","Census Tract and Block ID","County ID","Total No. Rooms","Asessment Year")
 
-```{r}
+category<-c("buildingclasstypeid","finishedsquarefeet13","basementsqft","storytypeid","yardbuildingsqft26","fireplaceflag","architecturalstyletypeid","typeconstructiontypeid","finishedsquarefeet6","decktypeid","poolsizesum","pooltypeid10","pooltypeid2","taxdelinquencyflag","taxdelinquencyyear","hashottuborspa","yardbuildingsqft17","finishedsquarefeet15","finishedfloor1squarefeet","finishedsquarefeet50","fireplacecnt","threequarterbathnbr","pooltypeid7","poolcnt","numberofstories","airconditioningtypeid","garagecarcnt","garagetotalsqft","regionidneighborhood","heatingorsystemtypeid","buildingqualitytypeid","unitcnt","lotsizesquarefeet","finishedsquarefeet12","regionidcity","calculatedbathnbr","fullbathcnt","yearbuilt","calculatedfinishedsquarefeet","censustractandblock","structuretaxvaluedollarcnt","regionidzip","taxamount","taxvaluedollarcnt","landtaxvaluedollarcnt","parcelid","logerror","transactiondate","bathroomcnt","bedroomcnt","fips","latitude","longitude","propertycountylandusecode","propertylandusetypeid","propertyzoningdesc","rawcensustractandblock","regionidcounty","roomcnt","assessmentyear")
 
+var_key<-data.frame(category, label)
 
-#properties_2016_subset<-properties_2016[,c("parcelid",names(properties_2016)[str_detect(names(properties_2016),pattern="tax" %R% or("value","amount"))])]
-#names(properties_2016_subset)<-c("parcelid",paste0(names(properties_2016_subset)[2:ncol(properties_2016_subset)],"_2016"))
-#properties<-merge(properties_2017,properties_2016_subset,by="parcelid")
-
-
-```
-
-# training Data
-
-## Tidying
-
-Tidy the training data by merging with the metadata and coercing numeric ID variables to factors.
-
-```{r train_variable_class, echo=F}
 train_2016<-merge(train_2016,properties_2016,by="parcelid")
 factor_vars <- str_subset(names(train_2016),pattern="id")
 factor_vars <- c(factor_vars,"fips","propertycountylandusecode","propertyzoningdesc","rawcensustractandblock","censustractandblock")
@@ -55,10 +42,16 @@ factor_vars <- c(factor_vars,"fips","propertycountylandusecode","propertyzoningd
 train_2017[,factor_vars]<-lapply(train_2017[,factor_vars],factor)
 ```
 
+
+```{r}
+#properties_2016_subset<-properties_2016[,c("parcelid",names(properties_2016)[str_detect(names(properties_2016),pattern="tax" %R% or("value","amount"))])]
+#names(properties_2016_subset)<-c("parcelid",paste0(names(properties_2016_subset)[2:ncol(properties_2016_subset)],"_2016"))
+#properties<-merge(properties_2017,properties_2016_subset,by="parcelid")
+```
+
 ### Missingness and Imputation
 
 Calculate the missingness for each variable by counting the NA or empty string observations. Impute values based on other correlating variables.
-
 ```{r train_2016_missingness, include=FALSE}
 # Count the number of NAs or empty strings in each column of properties_2016
 missingness_2016_preimputation<-lapply(train_2016,function(x){
@@ -78,8 +71,6 @@ missingness_2016_preimputation<-select(missingness_2016_preimputation,c("var","m
 missingness_2016_preimputation<-missingness_2016_preimputation %>% mutate(category = lapply(missingness_2016_preimputation,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
 missingness_2016_preimputation$category<-as.character(missingness_2016_preimputation$category)
 
-labels<-c("Framing Type","Perimeter Living Area Sqft.","Type of Floors in Multi-Story House","Basement Sqft.","Yard Building Sqft.","Fireplace, Y/N","Architecture Style","Construction Material","Unfinished and Finished Sqft.","Type of Deck","Pool Sqft.","Spa or Hot Tub, Y/N","Pool with Spa or Hot Tub, Y/N", "Year of Tax Delinquency", "Tax Delinquency, Y/N","Spa or Hot Tub, Y/N","Patio Sqft.","Total Sqft.","First Floor Living Area Sqft.","First Floor Living Area Sqft.","No. Fireplaces","No. 3/4 Baths","Pool without Spa or Hot Tub, Y/N","No. Pools","No. Stories","Type of Air Conditioning","Garage Sqft.","No. Garages","Neighborhood ID","Type of Heating System","Building Condition","No. Units","Lot Sqft.","Living Area Sqft.","City ID","No. Full Baths","Total No. Baths","Year Built","Total Finished Living Area Sqft.","Census Tract and Block ID","Assessed Value of Structure","Zip Code","Total Property Tax","Total Tax Assessed Value of Parcel","Assessed Value of Land","Transaction Date","Total No. Rooms","County ID","Census Tract and Block ID","Description of Zoning","Zoning","Zoning at County Level","Parcel ID","Longitude","Log Error","Latitude", "Federal Information Processing Standard Code","No. Bedrooms","Total No. Baths","Asessment Year")
-
 p1 <- ggplot(missingness_2016_preimputation,aes(x=reorder(var, missingness_2016_preimputation),y=missingness_2016_preimputation,fill=category)) +
   geom_col() +
   scale_fill_manual(breaks=c(">95%",">=5%, <=95%","<5%"),values=c("blue","black","red")) +
@@ -88,7 +79,7 @@ p1 <- ggplot(missingness_2016_preimputation,aes(x=reorder(var, missingness_2016_
   theme(panel.grid = element_blank(),legend.position = c(0.9,0.1), axis.ticks=element_blank()) +
   guides(fill=guide_legend(element_blank())) +
   labs(y="Missingness (%)",x=element_blank()) +
-  scale_x_discrete(breaks=missingness_2016_preimputation$var, labels=labels) +
+  scale_x_discrete(breaks=as.character(var_key$category), labels=as.character(var_key$label)) +
   coord_flip()
 
 p1
@@ -142,12 +133,34 @@ tmp2<-as.data.frame(lapply(train_2016[,names(train_2016) %in% character_variable
   str_detect(x,pattern = START %R% END)
 }))  # Check if empty string for all columns whose entries are characters
 df_missing<-cbind(tmp1,tmp2)
-names(df_missing)<-names(select(df_missing,names(train_2016))) # reorder to same order as train_2016
 df_missing<-sapply(df_missing,as.numeric)
+
 cor_missing<-cor(df_missing)
 cor_missing<-cor_missing[which(lapply(as.data.frame(df_missing),sum) > 1),which(lapply(as.data.frame(df_missing),sum) > 1)]
 
-corrplot(cor_missing,type="lower", title="Correlation of the Missingness of Variables",order="hclust") 
+p.mat<-cor_pmat(df_missing)
+#tmp<-as.data.frame(p.mat)
+#tmp[is.na(tmp)] <- 1
+#p.mat<-as.matrix(tmp)
+
+tmp<-cor_missing
+tmp[lower.tri(cor_missing)] <- NA
+tmp_melt<-melt(tmp)
+tmp_melt<-tmp_melt[!is.na(tmp_melt$value),]
+tmp2_melt<-melt(p.mat)
+cor_mat<-merge(tmp_melt,tmp2_melt,by=c("Var1","Var2"),sort=F)
+names(cor_mat)<-c("Var1","Var2","corr","pval")
+cor_mat<-merge(cor_mat, var_key, by.x="Var1", by.y="category",sort=FALSE)
+cor_mat<-merge(cor_mat, var_key, by.x="Var2", by.y="category",sort-FALSE)
+
+
+ggplot(data =  cor_mat, aes(x =Var1, y = Var2)) +
+  geom_tile(aes(fill = pval), colour = "white") +
+  geom_text(aes(label = sprintf("%1.2f",corr))) +
+  scale_fill_gradient(high="white",low="#E41A1C", limits=c(0,0.05)) +
+  scale_x_discrete(position="top",expand=c(0,0), breaks=var_key$category, labels=var_key$label) +
+  scale_y_discrete(expand=c(0,0)) +
+  theme(axis.title = element_blank(),axis.text.x=element_text(angle=45,vjust=0.5, hjust=0),axis.ticks = element_blank(),axis.line=element_blank())
 
 cor_logerror_missing<-cor(df_missing,train_2016$logerror)
 cor_logerror_missing<-cor_logerror_missing[!is.na(cor_logerror_missing),]
@@ -367,8 +380,6 @@ grid.arrange(q1,r1,s1,q2,r2,s2,q3,r3,s3,ncol=3)
 ```
 
 ```{r train_2016_imputation}
-
-
 imputed_train_2016$taxdelinquencyflag <- ifelse(imputed_train_2016$taxdelinquencyflag == "Y",TRUE,FALSE)
 imputed_train_2016[!is.na(imputed_train_2016$taxdelinquencyyear) & imputed_train_2016$taxdelinquencyyear == 0,"taxdelinquencyyear"] <- NA
 
@@ -429,7 +440,6 @@ p2 <- ggplot(missingness,aes(x=reorder(var, missingness),y=missingness,fill=cate
   coord_flip()
 
 p2
-
 ```
 
 ### Correlation
@@ -437,10 +447,29 @@ p2
 ```{r correlation}
 # calculate correlations of variables
 numeric_vars<-names(which(lapply(imputed_train_2016,is.numeric) == TRUE))
-numeric_vars<-numeric_vars[!(numeric_vars %in% c("basementsqft","finishedsquarefeet13","assessmentyear","finishedsquarefeet15","finishedsquarefeet6","threequarterbathnbr","unitcnt"))]
+numeric_vars<-numeric_vars[numeric_vars %in% c(missingness[!(missingness$missingness == 0),"var"],"logerror")]
+#numeric_vars<-numeric_vars[!(numeric_vars %in% c("basementsqft","finishedsquarefeet13","assessmentyear","finishedsquarefeet15","finishedsquarefeet6","threequarterbathnbr","unitcnt"))]
 M <- cor(imputed_train_2016[,names(imputed_train_2016) %in% numeric_vars],use="pairwise.complete.obs")
-corrplot(M,type="lower",order="hclust")
-# None of the numberic variables are correlated with logerror
+
+tmp<-M
+tmp[is.na(tmp)]=1000
+tmp[lower.tri(M)] <- NA
+tmp_melt<-melt(tmp)
+tmp_melt<-tmp_melt[!is.na(tmp_melt$value),]
+tmp_melt[tmp_melt$value==1000,"value"]<-NA
+#tmp2_melt<-melt(p.mat)
+#cor_mat<-merge(tmp_melt,tmp2_melt,by=c("Var1","Var2"),sort=F)
+#names(cor_mat)<-c("Var1","Var2","corr","pval")
+#cor_mat<-merge(cor_mat, var_key, by.x="Var1", by.y="category",sort=FALSE)
+#cor_mat<-merge(cor_mat, var_key, by.x="Var2", by.y="category",sort-FALSE)
+
+ggplot(data =  tmp_melt, aes(x =Var1, y = Var2)) +
+  geom_tile(aes(fill = value), colour = "white") +
+  geom_text(aes(label = round(value,2))) +
+  scale_fill_gradient2(low="#377EB8",mid="white", high="#E41A1C") +
+  scale_x_discrete(position="top",expand=c(0,0), breaks=var_key$category, labels=var_key$label) +
+  scale_y_discrete(expand=c(0,0)) +
+  theme(axis.title = element_blank(),axis.text.x=element_text(angle=45,vjust=0.5, hjust=0),axis.ticks = element_blank(),axis.line=element_blank())
 ```
 
 ### Models
@@ -470,11 +499,12 @@ colnames(sample_submission)<-c("ParcelId","201610","201611","201612","201710","2
 write.csv(x = sample_submission,file="submission1.csv", row.names=F, quote=F)
 ```
 
-```{r}
-
+Impute test data to prepare for predictions
+```{r impute_test_data}
 
 ```
 
+FOR LINEAR MODELS, IMPUTE ALL NA TO 0 - this will remove their effect from observations with missing values
 ```{r linear_model}
 lm_vars<-missingness[missingness$var %in% numeric_vars & !(missingness$var == "logerror") & missingness$missingness==0,"var"]
 
@@ -493,6 +523,7 @@ pred_glm_MAE<-sum(abs(train_2016$pred_glm - train_2016$logerror))/nrow(train_201
 properties_2016$glm_pred<-predict(train_2016.glm, newdata = properties_2016, type="response")
 
 properties_2016[is.na(properties_2016$glm_pred),"glm_pred"] <- mean(train_2016$logerror)
+# Impute any missing values as the mean
 
 sample_submission<-read.csv("sample_submission.csv")
 sample_submission$ParcelId<-properties_2016$parcelid
@@ -516,7 +547,6 @@ ggplot(train_2016,aes(x=logerror,y=pred_glm)) +
   geom_abline(slope=1) +
   ylim(c(-1,1))
 
-
 # One-hot encode county and/or subset county
 county<-train_2016[,c("parcelid","logerror","regionidcounty")]
 county$regionidcounty1286<-ifelse(county$regionidcounty == 1286,1,0)
@@ -524,8 +554,6 @@ county$regionidcounty2061<-ifelse(county$regionidcounty == 2061,1,0)
 county$regionidcounty3101<-ifelse(county$regionidcounty == 3101,1,0)
 
 county_cor<-cor(county[,c("regionidcounty1286","regionidcounty2061","regionidcounty3101")],train$logerror)
-
-
 
 # To try:
 # Linear model that uses only missingness to estimate logerror - DONE 
@@ -536,6 +564,7 @@ county_cor<-cor(county[,c("regionidcounty1286","regionidcounty2061","regionidcou
 # Check how transaction date affects the logerror
 # Check correlation of county with the other variables and the logerror
 ```
+
 
 ```{r lm_missingness}
 tmp<-as.data.frame(df_missing)
@@ -633,8 +662,8 @@ ggplot(train_2016,aes(x=logerror,y=pred_glm)) +
   geom_abline(slope=1)
 
 pred_glm_MAE<-sum(abs(train_2016$pred_glm - train_2016$logerror))/nrow(train_2016)
-# Performs better than average: actual MAE from sample submission is 0.0649832
 
+# Add sqft to glm
 ```
 
 ```{r}
