@@ -17,80 +17,89 @@ for (i in packages){
   require(i,character.only = T,quietly=T,warn.conflicts = F)
 }
 
-properties_2016<-read.csv("properties_2016.csv",stringsAsFactors = F)  # This takes a while...~3 million rows, 58 columns
+
+properties_2016<-read.csv("properties_2016.csv",stringsAsFactors = F)
+properties_2017<-read.csv("properties_2017.csv",stringsAsFactors = F)
+properties<-merge(properties_2017,properties_2016[,c("parcelid","structuretaxvaluedollarcnt","landtaxvaluedollarcnt","taxvaluedollarcnt","taxamount")],by="parcelid",suffixes = c("_2017","_2016"))
+properties$parcelid<-as.character(properties$parcelid)
+
+
+factor_vars <- c("airconditioningtypeid","architecturalstyletypeid","buildingclasstypeid","buildingqualitytypeid","decktypeid","heatingorsystemtypeid","propertylandusetypeid","regionidcity","regionidcounty","regionidneighborhood","regionidzip","storytypeid","typeconstructiontypeid","fips","propertycountylandusecode","propertyzoningdesc","rawcensustractandblock","censustractandblock")
+
+
+properties[,factor_vars]<-lapply(properties[,factor_vars],factor)
+
 train_2016<-read.csv("train_2016_v2.csv")
+train_2017<-read.csv("train_2017.csv")
 
-label<-c("Framing Type","Perimeter Living Area Sqft.","Basement Sqft.","Type of Floors in Multi-Story House","Yard Building Sqft.","Fireplace, Y/N","Architecture Style","Construction Material","Unfinished and Finished Sqft.","Type of Deck","Pool Sqft.","Spa or Hot Tub, Y/N","Pool with Spa or Hot Tub, Y/N","Tax Delinquency, Y/N","Year of Tax Delinquency","Spa or Hot Tub, Y/N","Patio Sqft.","Total Sqft.","First Floor Living Area Sqft.","First Floor Living Area Sqft.","No. Fireplaces","No. 3/4 Baths","Pool without Spa or Hot Tub, Y/N","No. Pools","No. Stories","Type of Air Conditioning","No. Garages","Garage Sqft.","Neighborhood ID","Type of Heating System","Building Condition","No. Units","Lot Sqft.","Total Finished Living Area Sqft.","City ID","Total No. Baths","No. Full Baths","Year Built","Total Finished Living Area Sqft.","Census Tract and Block ID","Assessed Value of Structure","Zip Code","Total Property Tax","Total Tax Assessed Value of Parcel","Assessed Value of Land","Parcel ID","Log Error","Transaction Date","Total No. Baths","No. Bedrooms","FIPS Code","Longitude","Latitude","Zoning at County Level","Zoning","Description of Zoning","Census Tract and Block ID","County ID","Total No. Rooms","Asessment Year")
+train<-rbind(train_2016,train_2017)
+train$transactionyear<-str_match(as.character(train$transactiondate), pattern = capture(one_or_more(DGT)) %R% "-")[,2]
+train$transactionmonth<-str_match(as.character(train$transactiondate), pattern = one_or_more(DGT) %R% "-" %R% capture(one_or_more(DGT)))[,2]
+train$parcelid<-as.character(train$parcelid)
+train<-merge(train,properties,by="parcelid")
 
-category<-c("buildingclasstypeid","finishedsquarefeet13","basementsqft","storytypeid","yardbuildingsqft26","fireplaceflag","architecturalstyletypeid","typeconstructiontypeid","finishedsquarefeet6","decktypeid","poolsizesum","pooltypeid10","pooltypeid2","taxdelinquencyflag","taxdelinquencyyear","hashottuborspa","yardbuildingsqft17","finishedsquarefeet15","finishedfloor1squarefeet","finishedsquarefeet50","fireplacecnt","threequarterbathnbr","pooltypeid7","poolcnt","numberofstories","airconditioningtypeid","garagecarcnt","garagetotalsqft","regionidneighborhood","heatingorsystemtypeid","buildingqualitytypeid","unitcnt","lotsizesquarefeet","finishedsquarefeet12","regionidcity","calculatedbathnbr","fullbathcnt","yearbuilt","calculatedfinishedsquarefeet","censustractandblock","structuretaxvaluedollarcnt","regionidzip","taxamount","taxvaluedollarcnt","landtaxvaluedollarcnt","parcelid","logerror","transactiondate","bathroomcnt","bedroomcnt","fips","latitude","longitude","propertycountylandusecode","propertylandusetypeid","propertyzoningdesc","rawcensustractandblock","regionidcounty","roomcnt","assessmentyear")
+label<-c("Framing Type","Perimeter Living Area Sqft.","Basement Sqft.","Type of Floors in Multi-Story House","Yard Building Sqft.","Fireplace, Y/N","Architecture Style","Construction Material","Unfinished and Finished Sqft.","Type of Deck","Pool Sqft.","Spa or Hot Tub, Y/N","Pool with Spa or Hot Tub, Y/N","Tax Delinquency, Y/N","Year of Tax Delinquency","Spa or Hot Tub, Y/N","Patio Sqft.","Total Sqft.","First Floor Living Area Sqft.","First Floor Living Area Sqft.","No. Fireplaces","No. 3/4 Baths","Pool without Spa or Hot Tub, Y/N","No. Pools","No. Stories","Type of Air Conditioning","No. Garages","Garage Sqft.","Neighborhood ID","Type of Heating System","Building Condition","No. Units","Lot Sqft.","Total Finished Living Area Sqft.","City ID","Total No. Baths","No. Full Baths","Year Built","Total Finished Living Area Sqft.","Census Tract and Block ID","Zip Code","Parcel ID","Log Error","Transaction Date","Total No. Baths","No. Bedrooms","FIPS Code","Longitude","Latitude","Zoning at County Level","Zoning","Description of Zoning","Census Tract and Block ID","County ID","Total No. Rooms","Asessment Year","Assessed Value of Structure (2016)","Total Property Tax (2016)","Total Tax Assessed Value of Parcel (2016)","Assessed Value of Land (2016)","Assessed Value of Structure (2017)","Total Property Tax (2017)","Total Tax Assessed Value of Parcel (2017)","Assessed Value of Land (2017)")
+
+category<-c("buildingclasstypeid","finishedsquarefeet13","basementsqft","storytypeid","yardbuildingsqft26","fireplaceflag","architecturalstyletypeid","typeconstructiontypeid","finishedsquarefeet6","decktypeid","poolsizesum","pooltypeid10","pooltypeid2","taxdelinquencyflag","taxdelinquencyyear","hashottuborspa","yardbuildingsqft17","finishedsquarefeet15","finishedfloor1squarefeet","finishedsquarefeet50","fireplacecnt","threequarterbathnbr","pooltypeid7","poolcnt","numberofstories","airconditioningtypeid","garagecarcnt","garagetotalsqft","regionidneighborhood","heatingorsystemtypeid","buildingqualitytypeid","unitcnt","lotsizesquarefeet","finishedsquarefeet12","regionidcity","calculatedbathnbr","fullbathcnt","yearbuilt","calculatedfinishedsquarefeet","censustractandblock","regionidzip","parcelid","logerror","transactiondate","bathroomcnt","bedroomcnt","fips","latitude","longitude","propertycountylandusecode","propertylandusetypeid","propertyzoningdesc","rawcensustractandblock","regionidcounty","roomcnt","assessmentyear","structuretaxvaluedollarcnt_2016","taxamount_2016","taxvaluedollarcnt_2016","landtaxvaluedollarcnt_2016","structuretaxvaluedollarcnt_2017","taxamount_2017","taxvaluedollarcnt_2017","landtaxvaluedollarcnt_2017")
 
 var_key<-data.frame(category, label)
 ```
 
-```{r train_variable_class}
-train_2016<-merge(train_2016,properties,by="parcelid")
-factor_vars <- str_subset(names(train_2016),pattern="id")
-factor_vars <- c(factor_vars,"fips","propertycountylandusecode","propertyzoningdesc","rawcensustractandblock","censustractandblock")
-train_2016[,factor_vars]<-lapply(train_2016[,factor_vars],factor)
-```
+### Missingness and Imputation
 
-```{r train_missingness, echo=F}
-# Count the number of NAs or empty strings in each column of properties_2016
-missingness_2016_preimputation<-lapply(train_2016,function(x){
-    ifelse(is.character(x),
-          sum(str_detect(x,pattern=START %R% END)),
-          sum(is.na(x))
-  )
-})
+Calculate the missingness for each variable by counting the NA or empty string observations. Impute values based on other correlating variables.
+```{r train_missingness, include=FALSE}
+character_variables<-names(which(sapply(properties, class) == "character"))
 
-# Format missingness
-missingness_2016_preimputation<-round(unlist(missingness_2016_preimputation)/nrow(train_2016)*100,3)
-missingness_2016_preimputation<-sort(missingness_2016_preimputation,decreasing=T)
-missingness_2016_preimputation<-as.data.frame(missingness_2016_preimputation)
-missingness_2016_preimputation$var<-row.names(missingness_2016_preimputation)
-row.names(missingness_2016_preimputation)<-seq(1:nrow(missingness_2016_preimputation))
-missingness_2016_preimputation<-select(missingness_2016_preimputation,c("var","missingness_2016_preimputation"))
-missingness_2016_preimputation<-missingness_2016_preimputation %>% mutate(category = lapply(missingness_2016_preimputation,function(x){if(x < 5){"<5%"} else if(x>=5 & x <= 95){">=5%, <=95%"} else{">95%"}}))
-missingness_2016_preimputation$category<-as.character(missingness_2016_preimputation$category)
+tmp1<-as.data.frame(is.na(properties[,!(names(properties) %in% character_variables)]))
+tmp2<-as.data.frame(lapply(properties[,names(properties) %in% character_variables],function(x){ 
+  str_detect(x,pattern = START %R% END)}))  
 
-p1 <- 
-  ggplot(missingness_2016_preimputation,aes(x=reorder(var, missingness_2016_preimputation),y=missingness_2016_preimputation,fill=category)) +
-  geom_col() +
-  scale_fill_manual(breaks=c(">95%",">=5%, <=95%","<5%"),values=c("#377eb8","black","#e41a1c")) +
-  scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
-  theme_bw() +
-  theme(panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),legend.position = c(0.875,0.09), axis.ticks=element_blank()) +
-  guides(fill=guide_legend(title = "Missingness")) +
-  labs(y="Missingness (%)",x=element_blank()) +
-  scale_x_discrete(breaks=as.character(var_key$category), labels=as.character(var_key$label)) +
-  coord_flip()
-```
-
-```{r}
-character_variables<-names(which(sapply(train_2016, class) == "character")) # Get names of all columns whose entries are characters
-
-tmp1<-as.data.frame(is.na(train_2016[,!(names(train_2016) %in% character_variables)])) # Check if NA for all columns whose entries are not characters
-tmp2<-as.data.frame(lapply(train_2016[,names(train_2016) %in% character_variables],function(x){ 
-  str_detect(x,pattern = START %R% END)
-}))  # Check if empty string for all columns whose entries are characters
 df_missing<-cbind(tmp1,tmp2)
 df_missing<-sapply(df_missing,as.numeric)
+colnames(df_missing)<-paste0(colnames(df_missing),"_missing")
+df_missing<-as.data.frame(df_missing)
+row.names(df_missing)<-properties$parcelid
 
-cor_logerror_missing<-cor(df_missing,train_2016$logerror)
+# Count the number of NAs or empty strings in each column of properties_2016
+missingness<-lapply(df_missing,sum)
+
+missingness<-as.numeric(missingness)
+missingness<-as.data.frame(missingness)
+missingness$var<-colnames(df_missing)
+missingness<-missingness[order(missingness$missingness,decreasing=T),]
+missingness$percent<-round(missingness$missingness/nrow(properties)*100,3)
+row.names(missingness)<-seq(1:nrow(missingness))
+missingness<-select(missingness,c("var","missingness","percent"))
+missingness<-missingness %>%  mutate(category = lapply(percent,function(x){ifelse(x>=99,">=99%","<99%")}))
+missingness$category<-as.character(missingness$category)
+
+p1<-ggplot(missingness,aes(x=reorder(var, percent),y=percent,fill=category)) +
+  geom_col() +
+  scale_fill_manual(breaks=c(">=99%","<99%"),values=c("gray70","gray30")) +
+  scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),legend.position = c(0.875,0.09), axis.ticks=element_blank(),,plot.margin = unit(c(0.01,0.03,0.01,0), "null")) +
+  guides(fill=guide_legend(title = "Missingness")) +
+  labs(y="Missingness (%)",x=element_blank()) +
+  scale_x_discrete(breaks=paste0(as.character(var_key$category),"_missing"), labels=as.character(var_key$label)) +
+  coord_flip()
+
+tmp<-merge(train[,c("parcelid","logerror")],df_missing,by.x="parcelid",by.y=0 )
+cor_logerror_missing<-cor(tmp[,3:ncol(tmp)],abs(tmp$logerror))
 cor_logerror_missing<-cor_logerror_missing[!is.na(cor_logerror_missing),]
 cor_logerror_missing<-as.data.frame(cor_logerror_missing)
 cor_logerror_missing$type<-row.names(cor_logerror_missing)
 
-p2<-
-  ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), y=abs(cor_logerror_missing),fill=ifelse(cor_logerror_missing < 0, "Negative","Positive"))) +
+p2<-ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), y=abs(cor_logerror_missing),fill=ifelse(cor_logerror_missing < 0, "Negative","Positive"))) +
   geom_col() +
-  scale_fill_brewer(palette = "Set1") +
-  scale_y_continuous(limits = c(NA,0.024),expand = c(0,0), breaks=c(0,0.006,0.012,0.018,0.024)) +
+  scale_fill_manual(breaks=c("Positive","Negative"),values=c("gray30","gray70")) +
+  scale_y_continuous(limits = c(NA,0.100),expand = c(0,0)) +
   theme_bw() +
   theme(panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),legend.position = c(0.875,0.09), axis.ticks=element_blank(),plot.margin = unit(c(0.01,0.03,0.01,0), "null")) +
   coord_flip() +
   guides(fill=guide_legend("Direction of\nCorrelation")) +
-  scale_x_discrete(breaks=as.character(var_key$category), labels=as.character(var_key$label)) +
+  scale_x_discrete(breaks=paste0(as.character(var_key$category),"_missing"), labels=as.character(var_key$label)) +
   labs(y= "Absolute Value of Correlation", x="")
 
 pg<-plot_grid(p1, p2, ncol=2, labels=c("A", "B"))
