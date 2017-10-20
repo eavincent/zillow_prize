@@ -269,3 +269,105 @@ $$log(a)-log(b)=log(\frac{a}{b})$$
 * `prcomp(data, scale = FALSE, center = TRUE)`
     + `scale` parameter indicates if data should be scale to stdev 1 before performing PCA. Without scaling, features that are on a larger scale will artificially appear to explain more variance in the data
     + `center` parameter indicates if data should be centered around 0 before performing PCA
+    
+    
+## Course 4: Machine Learning Toolbox
+
+### Intro to caret package
+* Machine learning automates supervised learning
+* 2 types of predictive models: classification/qualitative, and regression/quantitative
+* Linear regression models seek to minimize the root mean squared error (RMSE)
+* Contrast in-sample error with out-of sample error
+* Significantly better in-sample error means model is likely overfit
+* Primary concern is do models perform well on _new_ data
+* Error metrics should be computed on new data - computing error metrics on training data essentially guarantees overfitting
+* RMSE has the same units as the test set
+* `createResamples()` and `createFolds()` functions in the `caret` package work for splitting test and train sets
+* Presence or absence of single outlier can vastly change out-of-sample RMSE if only one test set is used
+* Better than splitting full data set 80/20 into train and test is to create multiple test sets and average out-of-sample error to give a more precise estimate of true out-of-sample error: cross-validation
+* Cross validation involves splitting full dataset into 10 "folds" (train/test splits)
+    + Each point in the data set occurs in exactly one test set
+    + Test set is the same size as the training set but is composed of out-of-sample predictions
+    + Assign rows to test sets randomly (don't forget to set the seed for reproducibility!)
+    + After getting the error estimate from the folds, discard the models and re-fit a model on the full dataset
+* Train function in caret uses bootstrapping, but is similar to cross-validation
+
+```{r eval=F}
+model <- train(y ~ x1 + x2, data,
+               method = "lm", # can also be "rf" for random forest
+               trControl = trainControl( # controls parameters caret uses for cross-validation
+                 method = "cv", number = 10,
+                 verboseIter=TRUE # gives a progress log
+                 )
+)
+```
+
+### Logistic regression
+* Confusion matrix - predicted vs. actual for classification
+* No-information model: always predicts the more common class. Good baseline for classification model performance
+* Choosing threshold is a balance between true positive and false positive rates
+```{r eval=F}
+library(caTools)
+colAUC(pred, actual, plotROC=TRUE)
+```
+* Models with random predictions tend to follow the line of unity
+* Area under the curve (AUC) for a perfect model is 1, AUC for a random model is 0.5
+
+### Random Forests
+* Robust against overfitting
+* Very accurate, non-linear models
+* RFs have hyperparameters require manual specification
+* RF creates many decision trees, each fit with a bootstrap sample of your data
+
+```{r eval=F}
+library(caret)
+library(mlbench)
+data(Sonar)
+
+set.seed(42)
+
+model <- train(Class~.,
+               data=Sonar,
+               method="ranger" # This specifies using a random forest
+               )
+plot(model)
+```
+
+* Ranger is a patch for the original random forest package in R, and is much faster than the original and gives very similar results
+* Difference between linear models and random forests is that random forests require tuning of hyperparameters
+* Hyperparameters control how the model is fit, and must be selected by hand before fitting the model
+* Most important is mtry: the number of randomly selected variables used at each split in the decision trees that make up the forest
+* mtry is tuneable: can use 2-100 - 2 would be more random, 100 would be less random
+* Hard to know the best value in advance
+* caret automates tuning of hyperparameters
+* tuneLength tells caret how many different variations to try
+* Default model uses tuneLength of 3
+* Random forest is slower than glmnet and is less interpretable, but is often more accurate than glmnet, is easier to tunes, requires little preprocessing, and captures threshold effects and variable interactions
+
+### glmnet
+* Extension of glm with built-in variable selection
+* Helps models deal with collinearity and small sample sizes
+* Two primary forms: lasso (penalizes number of non-zero coefficients) and ridge (penalizes absolute magnitude of coefficients)
+* Attempts to find parsimonious model with either small number of coefficients or small absolute magnitude of coefficients
+* Pairs well with random forest
+* Combination of lasso and ridge regression
+* glmnet models can use a combination of lasso and ridge regression
+* alpha ranges from 0 to 1 where 0 is pure ridge and 1 is pure lasso
+* lambda ranges from 0 to infinity and is the size of the penalty
+* Ridge regression typically outperforms lasso regression
+
+### Missing data
+* Most models require numbers and can't handle missing data
+* Not a good idea to remove rows with missing data as this can lead to biases for values missing _not at random_
+* Median imputation works well if data is missing _at random_
+* `train(X, Y, preProcess = "medianImpute")`
+* KNN imputation imputes based on other, similar non-missing rows - attempts to overcome the missing not at random case
+* `train(X, Y, preProcess = "knnImpute")`
+* Order of preprocessing: median imputation, then center, then scale, then fit a glm
+* _Always_ center and scale for linear models
+* caret preProcessing arguments: "zv" removes constant columns and "nzv" removes nearly constant columns
+
+### Resamples
+* Compare performance of different models
+* `caretEnsemble` package to look at comparison plots of different models
+* `caretEnsemble` has function `caretList()` to create multiple caret models on the same dataset using the same resampling folds

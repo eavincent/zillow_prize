@@ -79,10 +79,10 @@ p1<-ggplot(missingness,aes(x=reorder(var, percent),y=percent,fill=category)) +
   scale_fill_manual(breaks=c(">=99%","<99%"),values=c("gray70","gray30")) +
   scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
   theme_bw() +
-  theme(panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),legend.position = c(0.875,0.09), axis.ticks=element_blank(),,plot.margin = unit(c(0.01,0.03,0.01,0), "null")) +
+  theme(panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),legend.position = c(0.875,0.09), axis.ticks=element_blank(),plot.margin = unit(c(0.01,0.03,0.01,0), "null")) +
   guides(fill=guide_legend(title = "Missingness")) +
   labs(y="Missingness (%)",x=element_blank()) +
-  scale_x_discrete(breaks=paste0(as.character(var_key$category),"_missing"), labels=as.character(var_key$label)) +
+  scale_x_discrete(breaks=as.character(var_key$category), labels=as.character(var_key$label)) +
   coord_flip()
 
 tmp<-merge(train[,c("parcelid","logerror")],df_missing,by.x="parcelid",by.y=0 )
@@ -94,7 +94,7 @@ cor_logerror_missing$type<-row.names(cor_logerror_missing)
 p2<-ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), y=abs(cor_logerror_missing),fill=ifelse(cor_logerror_missing < 0, "Negative","Positive"))) +
   geom_col() +
   scale_fill_manual(breaks=c("Positive","Negative"),values=c("gray30","gray70")) +
-  scale_y_continuous(limits = c(NA,0.100),expand = c(0,0)) +
+  scale_y_continuous(limits = c(NA,0.10),expand = c(0,0)) +
   theme_bw() +
   theme(panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),legend.position = c(0.875,0.09), axis.ticks=element_blank(),plot.margin = unit(c(0.01,0.03,0.01,0), "null")) +
   coord_flip() +
@@ -104,25 +104,4 @@ p2<-ggplot(cor_logerror_missing,aes(x=reorder(type, abs(cor_logerror_missing)), 
 
 pg<-plot_grid(p1, p2, ncol=2, labels=c("A", "B"))
 save_plot("missingness.pdf", pg, base_height=8, base_width = 16)
-```
-
-```{r, fig.height=6, fig.width=8}
-coordinates<-properties_2016[,c("longitude","latitude")]
-
-coordinates$latitude<-as.numeric(str_replace(coordinates$latitude, pattern=capture(dgt(2)) %R% capture(one_or_more(DGT)),replacement=REF1 %R% DOT %R% REF2))
-coordinates$longitude<-as.numeric(str_replace(coordinates$longitude, pattern=capture("-" %R% dgt(3)) %R% capture(one_or_more(DGT)),replacement=REF1 %R% DOT %R% REF2))
-
-get_density <- function(x, y, n = 100) {
-  dens <- MASS::kde2d(x = x, y = y, n = n)
-  ix <- findInterval(x, dens$x)
-  iy <- findInterval(y, dens$y)
-  ii <- cbind(ix, iy)
-  return(dens$z[ii])
-}
-#cali <- c(left = -125, bottom = 30, right = -115, top = 40)
-map <- get_googlemap(center=c(lon = -118.4, lat=34), zoom = 8, maptype = "roadmap")
-p<-ggmap(map) +
-  geom_point(aes(x = longitude, y = latitude,color=get_density(x=longitude,y=latitude)), data = na.omit(coordinates)) +
-  scale_color_gradientn("Density",colors = c("blue4","blue","springgreen2","yellow","orange","red","red3"), breaks=c(0.1,3),labels=c("low","high")) +
-  theme(axis.text = element_blank(),axis.ticks = element_blank(),axis.title = element_blank(),legend.position = c(0.08,0.12),legend.background = element_blank(), axis.line = element_blank())
 ```

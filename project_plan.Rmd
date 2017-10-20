@@ -17,7 +17,7 @@ and it is recorded in the transactions file *train.csv*. In this competition, yo
 ## Project Plan
 
 ### 1. Learn Machine Learning (ML)
-* Complete Skill track for ML in [R](https://www.datacamp.com/tracks/machine-learning) (16hrs) **in progress**
+* ~~Complete Skill track for ML in [R](https://www.datacamp.com/tracks/machine-learning) (16hrs)~~ **done**
 * Go through [Titanic tutorial](https://www.kaggle.com/c/titanic) on Kaggle
 
 ### 2. Import and Explore Data
@@ -51,4 +51,4 @@ Determine how to handle missing data and confirm that the classification methods
 
 #### Tables and figures:
 * ~~Plot missingness~~ **done**
-* Make a table for MAE (and R^2?) values to compare models 
+* Make a table for MAE (and R$^2$?) values to compare models 
