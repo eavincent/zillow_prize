@@ -30,15 +30,46 @@ factor_vars <- c("airconditioningtypeid","architecturalstyletypeid","buildingcla
 
 properties[,factor_vars]<-lapply(properties[,factor_vars],factor)
 
-label<-c("Framing Type","Perimeter Living Area Sqft.","Basement Sqft.","Type of Floors in Multi-Story House","Yard Building Sqft.","Fireplace, Y/N","Architecture Style","Construction Material","Unfinished and Finished Sqft.","Type of Deck","Pool Sqft.","Spa or Hot Tub, Y/N","Pool with Spa or Hot Tub, Y/N","Tax Delinquency, Y/N","Year of Tax Delinquency","Spa or Hot Tub, Y/N","Patio Sqft.","Total Sqft.","First Floor Living Area Sqft.","First Floor Living Area Sqft.","No. Fireplaces","No. 3/4 Baths","Pool without Spa or Hot Tub, Y/N","No. Pools","No. Stories","Type of Air Conditioning","No. Garages","Garage Sqft.","Neighborhood ID","Type of Heating System","Building Condition","No. Units","Lot Sqft.","Total Finished Living Area Sqft.","City ID","Total No. Baths","No. Full Baths","Year Built","Total Finished Living Area Sqft.","Census Tract and Block ID","Zip Code","Parcel ID","Log Error","Transaction Date","Total No. Baths","No. Bedrooms","FIPS Code","Longitude","Latitude","Zoning at County Level","Zoning","Description of Zoning","Census Tract and Block ID","County ID","Total No. Rooms","Asessment Year","Assessed Value of Structure (2016)","Total Property Tax (2016)","Total Tax Assessed Value of Parcel (2016)","Assessed Value of Land (2016)","Assessed Value of Structure (2017)","Total Property Tax (2017)","Total Tax Assessed Value of Parcel (2017)","Assessed Value of Land (2017)")
+label<-c("Framing Type","Perimeter Living Area Sqft.","Basement Sqft.","Type of Floors in Multi-Story House","Yard Building Sqft.","Fireplace, Y/N","Architecture Style","Construction Material","Unfinished and Finished Sqft.","Type of Deck","Pool Sqft.","Spa or Hot Tub, Y/N","Pool with Spa or Hot Tub, Y/N","Tax Delinquency, Y/N","Year of Tax Delinquency","Spa or Hot Tub, Y/N","Patio Sqft.","Total Sqft.","First Floor Living Area Sqft.","First Floor Living Area Sqft.","No. Fireplaces","No. 3/4 Baths","Pool without Spa or Hot Tub, Y/N","No. Pools","No. Stories","Type of Air Conditioning","No. Garages","Garage Sqft.","Neighborhood ID","Type of Heating System","Building Condition","No. Units","Lot Sqft.","Total Finished Living Area Sqft.","City ID","Total No. Baths","No. Full Baths","Year Built","Total Finished Living Area Sqft.","Census Tract and Block ID","Zip Code","Parcel ID","Log Error","Transaction Date","Total No. Baths","No. Bedrooms","FIPS Code","Longitude","Latitude","Zoning at County Level","Zoning","Description of Zoning","Census Tract and Block ID","County ID","Total No. Rooms","Asessment Year","Assessed Value of Structure","Total Property Tax","Total Tax Assessed Value of Parcel","Assessed Value of Land","County ID 1286","County ID 2061","County ID 3101","Month of Sale","Year of Sale")
 
-category<-c("buildingclasstypeid","finishedsquarefeet13","basementsqft","storytypeid","yardbuildingsqft26","fireplaceflag","architecturalstyletypeid","typeconstructiontypeid","finishedsquarefeet6","decktypeid","poolsizesum","pooltypeid10","pooltypeid2","taxdelinquencyflag","taxdelinquencyyear","hashottuborspa","yardbuildingsqft17","finishedsquarefeet15","finishedfloor1squarefeet","finishedsquarefeet50","fireplacecnt","threequarterbathnbr","pooltypeid7","poolcnt","numberofstories","airconditioningtypeid","garagecarcnt","garagetotalsqft","regionidneighborhood","heatingorsystemtypeid","buildingqualitytypeid","unitcnt","lotsizesquarefeet","finishedsquarefeet12","regionidcity","calculatedbathnbr","fullbathcnt","yearbuilt","calculatedfinishedsquarefeet","censustractandblock","regionidzip","parcelid","logerror","transactiondate","bathroomcnt","bedroomcnt","fips","latitude","longitude","propertycountylandusecode","propertylandusetypeid","propertyzoningdesc","rawcensustractandblock","regionidcounty","roomcnt","assessmentyear","structuretaxvaluedollarcnt_2016","taxamount_2016","taxvaluedollarcnt_2016","landtaxvaluedollarcnt_2016","structuretaxvaluedollarcnt_2017","taxamount_2017","taxvaluedollarcnt_2017","landtaxvaluedollarcnt_2017")
+category<-c("buildingclasstypeid","finishedsquarefeet13","basementsqft","storytypeid","yardbuildingsqft26","fireplaceflag","architecturalstyletypeid","typeconstructiontypeid","finishedsquarefeet6","decktypeid","poolsizesum","pooltypeid10","pooltypeid2","taxdelinquencyflag","taxdelinquencyyear","hashottuborspa","yardbuildingsqft17","finishedsquarefeet15","finishedfloor1squarefeet","finishedsquarefeet50","fireplacecnt","threequarterbathnbr","pooltypeid7","poolcnt","numberofstories","airconditioningtypeid","garagecarcnt","garagetotalsqft","regionidneighborhood","heatingorsystemtypeid","buildingqualitytypeid","unitcnt","lotsizesquarefeet","finishedsquarefeet12","regionidcity","calculatedbathnbr","fullbathcnt","yearbuilt","calculatedfinishedsquarefeet","censustractandblock","regionidzip","parcelid","logerror","transactiondate","bathroomcnt","bedroomcnt","fips","latitude","longitude","propertycountylandusecode","propertylandusetypeid","propertyzoningdesc","rawcensustractandblock","regionidcounty","roomcnt","assessmentyear","structuretaxvaluedollarcnt","taxamount","taxvaluedollarcnt","landtaxvaluedollarcnt","regionidcounty_1286","regionidcounty_2061","regionidcounty_3101","transactionmonth","transactionyear")
 
 var_key<-data.frame(category, label)
 
 character_variables<-names(which(sapply(properties, class) == "character"))
 ```
 
+```{r import_train}
+train_2016<-read.csv("train_2016_v2.csv")
+train_2017<-read.csv("train_2017.csv")
+
+train_2016<-merge(train_2016,properties[,c("parcelid","taxvaluedollarcnt_2016","landtaxvaluedollarcnt_2016","taxamount_2016","structuretaxvaluedollarcnt_2016")],by="parcelid")
+names(train_2016) <- c("parcelid","logerror","transactiondate","taxvaluedollarcnt","landtaxvaluedollarcnt","taxamount","structuretaxvaluedollarcnt")
+
+train_2017<-merge(train_2017,properties[,c("parcelid","taxvaluedollarcnt_2017","landtaxvaluedollarcnt_2017","taxamount_2017","structuretaxvaluedollarcnt_2017")],by="parcelid")
+names(train_2017) <- c("parcelid","logerror","transactiondate","taxvaluedollarcnt","landtaxvaluedollarcnt","taxamount","structuretaxvaluedollarcnt")
+
+train<-rbind(train_2016,train_2017)
+train$transactionyear<-str_match(as.character(train$transactiondate), pattern = capture(one_or_more(DGT)) %R% "-")[,2]
+train$transactionmonth<-str_match(as.character(train$transactiondate), pattern = one_or_more(DGT) %R% "-" %R% capture(one_or_more(DGT)))[,2]
+train$parcelid<-as.character(train$parcelid)
+train<-merge(train,properties[,!str_detect(names(properties),pattern="tax" %R% or("value","amount"))],by="parcelid")
+
+properties<-train
+
+rm(train_2016, train_2017,train)
+```
+
+```{r distribution_of_logerror}
+
+ggplot(properties[order(properties$logerror),]) +
+  geom_boxplot(aes(y=logerror,x=1)) +
+  theme_bw() +
+  theme(panel.grid.major.y = element_blank(),panel.grid.minor = element_blank(), axis.text.y = element_blank(),axis.ticks.y=element_blank(), axis.title.y=element_blank()) +
+  scale_y_continuous(limits = c(-5.5,5.5),breaks=seq(-5,5,by=1),name="Log Error") +
+  coord_flip()
+
+```
 ### Missingness and Imputation
 
 Calculate the missingness for each variable by counting the NA or empty string observations. Impute values based on other correlating variables.
@@ -51,10 +82,12 @@ df_missing<-cbind(tmp1,tmp2)
 df_missing<-sapply(df_missing,as.numeric)
 colnames(df_missing)<-paste0(colnames(df_missing),"_missing")
 df_missing<-as.data.frame(df_missing)
-row.names(df_missing)<-properties$parcelid
+df_missing$parcelid<-properties$parcelid
+
+rm(tmp1,tmp2)
 
 # Count the number of NAs or empty strings in each column of properties_2016
-num_missing<-lapply(df_missing,sum)
+num_missing<-lapply(df_missing[,!names(df_missing) %in% "parcelid"],sum)
 percent<-lapply(num_missing,function(x){round(x/nrow(properties)*100,3)})
 missingness<-cbind(num_missing,percent)
 missingness<-as.data.frame(missingness)
@@ -64,11 +97,22 @@ missingness$var<-unlist(strsplit(rownames(missingness),"_missing$"))
 missingness<-missingness[order(missingness$num_missing,decreasing=T),]
 row.names(missingness)<-seq(1:nrow(missingness))
 missingness<-select(missingness,c("var","num_missing","percent"))
-missingness<-missingness %>%  mutate(category = lapply(percent,function(x){ifelse(x>=99,">=99%","<99%")}))
+missingness<-missingness %>%  mutate(category = lapply(percent,function(x){ifelse(x>=95,">=95%","<95%")}))
 missingness$category<-as.character(missingness$category)
+
+ggplot(missingness,aes(x=reorder(var, percent),y=percent,fill=category)) +
+  geom_col() +
+  scale_fill_manual(breaks=c(">=95%","<95%"),values=c("gray70","gray30")) +
+  scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),legend.position = c(0.875,0.09), axis.ticks=element_blank(),plot.margin = unit(c(0.01,0.03,0.01,0), "null")) +
+  guides(fill=guide_legend(title = "Missingness")) +
+  labs(y="Missingness (%)",x=element_blank()) +
+  scale_x_discrete(breaks=as.character(var_key$category), labels=as.character(var_key$label)) +
+  coord_flip()
 ```
 
-```{r imputation_and_one-hot-encoding}
+```{r one-hot-encoding}
 properties$taxdelinquencyflag <- ifelse(properties$taxdelinquencyflag == "Y",1,0)
 properties[!is.na(properties$taxdelinquencyyear) & properties$taxdelinquencyyear == 0,"taxdelinquencyyear"] <- NA
 
@@ -87,54 +131,6 @@ properties$regionidcounty_1286<-ifelse(properties$regionidcounty == 1286,1,0)
 properties$regionidcounty_2061<-ifelse(properties$regionidcounty == 2061,1,0)
 properties$regionidcounty_3101<-ifelse(properties$regionidcounty == 3101,1,0)
 properties<-properties[,!(colnames(properties) == "regionidcounty")]
-
-# Impute unit count based on propertly land use type ID
-properties[!(is.na(properties$propertylandusetypeid)) & properties$propertylandusetypeid == 246 & is.na(properties$unitcnt),"unitcnt"]<-2
-properties[!(is.na(properties$propertylandusetypeid)) & properties$propertylandusetypeid == 247 & is.na(properties$unitcnt),"unitcnt"]<-3
-properties[!(is.na(properties$propertylandusetypeid)) & properties$propertylandusetypeid == 248 & is.na(properties$unitcnt),"unitcnt"]<-4
-
-# Impute city based on zip and vice versa
-# Will only work for cities and zips that are uniquely paired
-# There are no entries that contain a neighborhood but /not/ a city or zip
-# All entries have county id
-
-region_table<-table(properties$regionidcity,properties$regionidzip)
-melted_region_table<-melt(region_table)
-names(melted_region_table)<-c("regionidcity","regionidzip","frequency")
-melted_region_table<-melted_region_table[!(melted_region_table$frequency == 0),]
-unique_cities<-names(which(table(melted_region_table$regionidcity) == 1)) # Cities that are uniquely associated with 1 zip code
-city_key<-melted_region_table[melted_region_table$regionidcity %in% unique_cities,1:2] # Create a key to associate city with Zip
-unique_zips<-names(which(table(melted_region_table$regionidzip) == 1)) # Zip codes that are uniquely associated with 1 city
-zip_key<-melted_region_table[melted_region_table$regionidzip %in% unique_zips,1:2] # Create a key to associate Zip with city
-
-# Check if there are entries that have zip but no city, and their zip is uniquely associated with one city
-dim(properties[is.na(properties$regionidcity) & properties$regionidzip %in% unique_zips,]) # 472 entries have a zip code uniquely associated with 1 city, but no city data
-m<-match(properties[is.na(properties$regionidcity) & properties$regionidzip %in% unique_zips,"regionidzip"],zip_key$regionidzip)
-properties[is.na(properties$regionidcity) & properties$regionidzip %in% unique_zips,"regionidcity"] <- zip_key$regionidcity[m]
-
-# Check if there are entries that have city but no zip, and their city is uniquely associated with one zip
-dim(properties[is.na(properties$regionidzip) & properties$regionidcity %in% unique_cities,]) # 0 entries have a zip code uniquely associated with 1 city, but no city data
-m<-match(properties[is.na(properties$regionidzip) & properties$regionidcity %in% unique_cities,"regionidcity"],city_key$regionidcity)
-properties[is.na(properties$regionidzip) & properties$regionidcity %in% unique_cities,"regionidzip"] <- city_key$regionidzip[m]
-
-
-# Use combination of city and zip to impute neighborhood
-neighborhoods<-unique(properties[,c("regionidcity","regionidzip","regionidneighborhood")])
-neighborhoods<-neighborhoods[!(is.na(neighborhoods$regionidcity) | is.na(neighborhoods$regionidzip) | is.na(neighborhoods$regionidneighborhood)),]
-neighborhoods<-unite(neighborhoods,col="city_zip",regionidcity,regionidzip,sep=".")
-neighborhoods$city_zip<-factor(neighborhoods$city_zip)
-
-m<-match(
-  as.factor(
-    (properties %>%
-    dplyr::filter(!is.na(properties$regionidcity), !is.na(properties$regionidzip), is.na(properties$regionidneighborhood)) %>%
-    unite("city_zip",regionidcity,regionidzip,sep=".") %>%
-    dplyr::filter(city_zip %in% neighborhoods$city_zip) %>%
-    as.data.frame())$city_zip),
-  neighborhoods$city_zip
-)
-
-properties[!(is.na(properties$regionidcity) | is.na(properties$regionidzip)) & is.na(properties$regionidneighborhood) & (unite(properties,"city_zip",regionidcity,regionidzip,sep="."))$city_zip %in% neighborhoods$city_zip ,"regionidneighborhood"] <- neighborhoods$regionidneighborhood[m]
 ```
 
 ```{r}
@@ -146,10 +142,12 @@ tmp<-cbind(tmp1,tmp2)
 tmp<-sapply(tmp,as.numeric)
 colnames(tmp)<-paste0(colnames(tmp),"_missing")
 tmp<-as.data.frame(tmp)
-row.names(tmp)<-properties$parcelid
+tmp$parcelid<-properties$parcelid
+
+rm(tmp1,tmp2)
 
 # Count the number of NAs or empty strings in each column of properties_2016
-num_missing<-lapply(tmp,sum)
+num_missing<-lapply(tmp[,!names(tmp) %in% "parcelid"],sum)
 percent<-lapply(num_missing,function(x){round(x/nrow(properties)*100,3)})
 missingness_postimputation<-cbind(num_missing,percent)
 missingness_postimputation<-as.data.frame(missingness_postimputation)
@@ -163,54 +161,67 @@ missingness_postimputation<-missingness_postimputation %>%  mutate(category = la
 missingness_postimputation$category<-as.character(missingness_postimputation$category)
 ```
 
-```{r import_train}
-train_2016<-read.csv("train_2016_v2.csv")
-train_2017<-read.csv("train_2017.csv")
-
-train<-rbind(train_2016,train_2017)
-train$transactionyear<-str_match(as.character(train$transactiondate), pattern = capture(one_or_more(DGT)) %R% "-")[,2]
-train$transactionmonth<-str_match(as.character(train$transactiondate), pattern = one_or_more(DGT) %R% "-" %R% capture(one_or_more(DGT)))[,2]
-train$parcelid<-as.character(train$parcelid)
-train<-merge(train,properties,by="parcelid")
-
-rm(train_2016, train_2017)
-```
-
 ### Correlation
-
 ```{r correlation_analyses}
 #Correlation of missingness with logerror
-tmp<-merge(train[,c("parcelid","logerror")],df_missing,by.x="parcelid",by.y=0 )
+tmp<-merge(properties[,c("parcelid","logerror")],df_missing,by="parcelid" )
 cor_logerror_missing<-cor(tmp[,3:ncol(tmp)],abs(tmp$logerror))
 cor_logerror_missing<-cor_logerror_missing[!is.na(cor_logerror_missing),]
 cor_logerror_missing<-as.data.frame(cor_logerror_missing)
-cor_logerror_missing$type<-row.names(cor_logerror_missing)
+cor_logerror_missing$type<-unlist(strsplit(rownames(cor_logerror_missing),"_missing$"))
 cor_logerror_missing.pmat<-cor_pmat(cbind(tmp[,3:ncol(tmp)],abs(tmp$logerror)))
-cor_logerror_missing.pmat<-cor_logerror_missing.pmat[,"abs(tmp$logerror)"]
-cor_logerror_missing<-cor_logerror_missing[cor_logerror_missing$type %in% names(cor_logerror_missing.pmat[cor_logerror_missing.pmat < 0.05]),]
+cor_logerror_missing<-merge(cor_logerror_missing,cor_logerror_missing.pmat[,"abs(tmp$logerror)"],by=0)
+rownames(cor_logerror_missing)<-cor_logerror_missing[,1]
+cor_logerror_missing<-cor_logerror_missing[,-1]
+names(cor_logerror_missing)<-c("corr","type","pval")
+cor_logerror_missing<-cor_logerror_missing[cor_logerror_missing$pval < 0.05,]
+
+p1<-ggplot(missingness,aes(x=reorder(var, percent),y=percent,fill=category)) +
+  geom_col() +
+  scale_fill_manual(breaks=c(">=95%","<95%"),values=c("gray70","gray30")) +
+  scale_y_continuous(limits = c(NA,100),expand = c(0,0)) +
+  theme_bw() +
+  theme(panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),legend.position = c(0.875,0.09), axis.ticks=element_blank(),plot.margin = unit(c(0.01,0.03,0.01,0), "null")) +
+  guides(fill=guide_legend(title = "Missingness")) +
+  labs(y="Missingness (%)",x=element_blank()) +
+  scale_x_discrete(breaks=as.character(var_key$category), labels=as.character(var_key$label)) +
+  coord_flip()
 
 # Correlation of numeric values (after imputation and one-hot encoding) with logerror
-numeric_vars<-names(which(lapply(train,is.numeric) == TRUE))
-numeric_vars<-numeric_vars[numeric_vars %in% c(missingness[(missingness$percent < 93.2),"var"],"logerror")]
-M <- cor(train[,names(train) %in% numeric_vars],abs(train$logerror),use="pairwise.complete.obs")
+numeric_vars<-names(which(lapply(properties,is.numeric) == TRUE))
+numeric_vars<-numeric_vars[numeric_vars %in% missingness[(missingness$percent < 93.2),"var"]]
+M <- cor(properties[,names(properties) %in% numeric_vars],abs(properties$logerror),use="pairwise.complete.obs")
 M <- as.data.frame(M)
-names(M)<-"corr"
-M.pmat<-cor_pmat(train[,names(train) %in% numeric_vars])
-M$pval<-M.pmat[,"logerror"]
+M.pmat<-cor_pmat(properties[,names(properties) %in% numeric_vars])
 M$type<-rownames(M)
+M<-merge(M,M.pmat[,"logerror"],by.x="type",by.y=0)
+names(M)<-c("type","corr","pval")
 M<-M[!(is.na(M$corr)),]
+M<-M[M$pval < 0.05,]
 M<-merge(M,missingness,by.x="type",by.y="var")
+M<-M[!M$type == "logerror",]
 
-#ggplot(M,aes(x=reorder(type, abs(corr)), y=abs(corr),fill=ifelse(corr < 0, "Negative","Positive"))) +
-ggplot(M,aes(x=reorder(type, abs(corr)), y=abs(corr),fill=percent)) +
+p2 <- ggplot(M,aes(x=reorder(type, abs(corr)), y=abs(corr),fill=ifelse(corr < 0, "Negative","Positive"))) +
   geom_col() +
-#  scale_fill_manual(breaks=c("Positive","Negative"),values=c("gray30","gray70")) +
-#  scale_y_continuous(limits = c(NA,0.120),expand = c(0,0)) +
+  scale_fill_manual(breaks=c("Positive","Negative"),values=c("gray30","gray70")) +
   scale_y_continuous(limits=c(NA,0.12),expand = c(0,0)) +
   theme_bw() +
   theme(panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),legend.position = c(0.95,0.13), axis.ticks=element_blank(),plot.margin = unit(c(0.01,0.03,0.01,0), "null")) +
   coord_flip() +
-#  guides(fill=guide_legend("Direction of\nCorrelation")) +
-#  scale_x_discrete(breaks=as.character(var_key$category), labels=as.character(var_key$label)) +
+  guides(fill=guide_legend("Direction of\nCorrelation")) +
+  scale_x_discrete(breaks=as.character(var_key$category), labels=as.character(var_key$label)) +
   labs(y= "Absolute Value of Correlation", x="")
+
+pg<-plot_grid(p1, p2, ncol=2, labels=c("A", "B"))
+pg
+#save_plot("missingness.pdf", pg, base_height=8, base_width = 14)
+```
+
+```{r remove_redundant_features}
+redundant_features<-c("censustratandblock","finishedsquarefeet50","hashottuborspa","finishedsquarefeet12","calculatedbathnbr")
+highly_missing_features<-missingness_postimputation[missingness_postimputation$percent >= 95,"var"]
+remove_features<-c(redundant_features,highly_missing_features)
+
+properties<-properties[,!names(properties) %in% remove_features]
+df_missing<-df_missing[,!names(df_missing) %in% paste0(remove_features,"_missing")]
 ```

@@ -4,234 +4,219 @@ author: "Liz Vincent"
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: html_document
 ---
-### Models
+## Models
 
-#### Predict the Mean
+### Predict the Mean
 ```{r predict_mean}
-ggplot(train,aes(x=logerror,y=mean(logerror))) + 
-  geom_point() +
-  geom_abline(slope=1) +
-  ylim(c(-5,5))
+MAE<-NA
 
-sum(abs(mean(train$logerror) - train$logerror))/nrow(train)
-# Actual MAE from sample submission is 0.0651279
-# Top submission MAE is currently 0.0632499
-
-rss<-sum((mean(train$logerror) - train$logerror) ** 2)
-ss<-sum((train$logerror - mean(train$logerror)) ** 2)
-
-pred_by_mean_rsquare<-1-rss/ss
-```
-
-```{r predict_median}
-
-```
-
-FOR LINEAR MODELS, IMPUTE ALL NA TO 0 - this will remove their effect from observations with missing values
-
-```{r linear_model}
-lm_vars<-missingness[missingness$var %in% numeric_vars & !(missingness$var == "logerror") & missingness$missingness==0,"var"]
-
-fmla<-as.formula("logerror ~ bathroomcnt + bedroomcnt + latitude + longitude + roomcnt + assessmentyear")
-train.glm<-glm(fmla, family=gaussian, data=train)
-
-train_clean<-train
-train_clean[is.na(train_clean)]<-0
-
-train$pred_glm <- predict(train.glm, data=train_clean, type="response")
-
-#ggplot(train,aes(x=logerror,y=pred_glm)) + 
-#  geom_point() +
-#  geom_abline(slope=1) +
-#  ylim(c(-1,1))
-
-pred_glm_MAE<-sum(abs(train$pred_glm - train$logerror))/nrow(train)
-# Performs better than average: actual MAE from sample submission is 0.0649832 for test data
-# 0.068396 for train data
-
-glm_pred<-predict(train.glm, newdata = properties_2016, type="response")
-test<-predict(train.glm, newdata = properties_clean, type="response")
-
-#glm_pred[is.na(glm_pred)] <- mean(train$logerror)
-# Impute any missing values as the mean
-
-#predictions$glm_1<-sample_submission
-#predictions$glm_1_MAE<- 0.0649832
-#Actual MAE:  0.0649832
-
-rss<-sum((train$pred_glm - train$logerror) ** 2)
-ss<-sum((train$logerror - mean(train$logerror)) ** 2)
-
-pred_by_glm_rsquare<-1-rss/ss
-
-train.glm<-glm(as.formula(paste0("logerror ~ ",paste(lm_vars, collapse = " + "))), family=gaussian, data=imputed_train)
-
-train$pred_glm <- predict(train.glm, data=train, type="response")
-
-ggplot(train,aes(x=logerror,y=pred_glm)) + 
-  geom_point() +
-  geom_abline(slope=1) +
-  ylim(c(-1,1))
-
-# To try:
-# Linear model that uses categorical data....somehow
-# Move on to ML models
-# Check how transaction date affects the logerror
-```
-
-```{r lm_missingness}
-tmp<-as.data.frame(df_missing)
-tmp$logerror<-train$logerror
-train_missingness.glm<-glm(logerror ~ ., family=gaussian,data=tmp)
-train$missingness_pred.glm<-predict(train_missingness.glm, data=train, type="response")
-
-ggplot(train,aes(x=logerror,y=missingness_pred.glm)) + 
-  geom_point() +
-  geom_abline(slope=1)
-
-pred_missingness_MAE<-sum(abs(train$missingness_pred.glm - train$logerror))/nrow(train)
-  
-rss<-sum((train$pred_logerror_mean - train$logerror) ** 2)
-ss<-sum((train$logerror - mean(train$logerror)) ** 2)
-
-pred_by_missingness_rsquare<-1-rss/ss
-
-train_missingness.glm<-glm(logerror ~ numberofstories + landtaxvaluedollarcnt + taxamount + finishedsquarefeet6 + finishedsquarefeet50 + longitude + lotsizesquarefeet, family=gaussian,data=tmp)
-train$missingness_pred.glm<-predict(train_missingness.glm, data=train, type="response")
-
-ggplot(train,aes(x=logerror,y=missingness_pred.glm)) + 
-  geom_point() +
-  geom_abline(slope=1)
-
-pred_missingness_MAE<-sum(abs(train$missingness_pred.glm - train$logerror))/nrow(train)
-  
-rss<-sum((train$pred_logerror_mean - train$logerror) ** 2)
-ss<-sum((train$logerror - mean(train$logerror)) ** 2)
-
-pred_by_missingness_rsquare<-1-rss/ss
-
-#####################################
-
-train$total_missingness<-apply(as.data.frame(df_missing[,-61]),1,sum)
-
-cor(train$logerror,train$total_missingness)
-# Log error and total missingness are not correlated 
-
-missing_lm_vars<-c(lm_vars,"total_missingness")
-
-train.glm<-glm(as.formula(paste0("logerror ~ ",paste(missing_lm_vars, collapse = " + "))), family=gaussian, data=train)
-
-train$pred_glm <- predict(train.glm, data=train, type="response")
-
-ggplot(train,aes(x=logerror,y=pred_glm)) + 
-  geom_point() +
-  geom_abline(slope=1) +
-  ylim(c(-1,1))
-
-pre_missing_glm_MAE<-sum(abs(train$pred_glm - train$logerror))/nrow(train)
-
-predictions$pred_glm <- predict(train.glm, newdata=properties_2016, type="response")
-
-properties_2016[is.na(properties_2016$pred_glm),"pred_glm"] <- mean(train$logerror)
-
-# Performs better than average and better than model not including missingness: actual MAE from sample submission is 0.0649675
-
-```
-
-```{r}
-train_clean<-imputed_train
-train_clean[is.na(train_clean)]<-0
-train_clean$total_missingness<-apply(as.data.frame(df_missing[,!(names(df_missing) == "parcelid")]),1,sum)
-identical(train_clean$parcelid,df_missing$parcelid)
-train_clean<-cbind(train_clean,df_missing[,!(names(df_missing) == "parcelid")])
-
-properties_clean<-imputed_properties_2016
-properties_clean[is.na(properties_clean)]<-0
-properties_clean$total_missingness<-apply(as.data.frame(properties_df_missing[,!(names(properties_df_missing) == "parcelid")]),1,sum)
-identical(properties_clean[,"parcelid"],as.character(properties_df_missing[,"parcelid"]))
-properties_clean<-cbind(properties_clean,properties_df_missing[,!(names(properties_df_missing) == "parcelid")])
-
-train_clean_2017<-imputed_train_2017
-train_clean_2017[is.na(train_clean_2017)]<-0
-train_clean_2017$total_missingness<-apply(as.data.frame(df_missing_2017[,!(names(df_missing_2017) == "parcelid")]),1,sum)
-identical(train_clean_2017$parcelid,df_missing_2017$parcelid)
-train_clean_2017<-cbind(train_clean_2017,df_missing_2017[,!(names(df_missing_2017) == "parcelid")])
-
-properties_clean_2017<-imputed_properties_2017
-properties_clean_2017[is.na(properties_clean_2017)]<-0
-properties_clean_2017$total_missingness<-apply(as.data.frame(properties_df_missing_2017[,!(names(properties_df_missing_2017) == "parcelid")]),1,sum)
-identical(properties_clean_2017[,"parcelid"],as.character(properties_df_missing_2017[,"parcelid"]))
-properties_clean_2017<-cbind(properties_clean_2017,properties_df_missing_2017[,!(names(properties_df_missing_2017) == "parcelid")])
-
-
-#c("basementsqft","bathroomcnt","total_missingness","longitude") gives MAE=0.06801313
-tmp_vars<-(names(train_clean)[!(names(train_clean) %in% tails_vars)])
-tmp_vars<-tmp_vars[c(6:10,12:18,20:27,31,34,36:42,57,58,61:108)]
-tmp_vars<-tmp_vars[!(tmp_vars %in% tails_vars)]
-
-#propertycountylandusecode throws error: new levels
-#tails_vars<-c("bathroomcnt","calculatedfinishedsquarefeet","garagetotalsqft","hashottuborspa","poolcnt","roomcnt","fireplaceflag","fireplacecnt","taxdelinquencyflag","taxdelinquencyyear","transactionmonth","pool","buildingclasstypeid_missing","calculatedfinishedsquarefeet_missing","garagecarcnt_missing","heatingorsystemtypeid_missing","taxvaluedollarcnt_missing","taxamount_missing","propertycountylandusecode","yearbuilt","numberofstories","structuretaxvaluedollarcnt","finishedfloor1squarefeet_missing","finishedsquarefeet13_missing","yardbuildingsqft17_missing","numberofstories_missing","finishedsquarefeet13","finishedsquarefeet50","latitude","lotsizesquarefeet")
-tails_vars<-c("bathroomcnt","calculatedfinishedsquarefeet","garagetotalsqft","hashottuborspa","poolcnt","roomcnt","fireplaceflag","fireplacecnt","taxdelinquencyflag","taxdelinquencyyear","transactionmonth","pool","buildingclasstypeid_missing","calculatedfinishedsquarefeet_missing","garagecarcnt_missing","heatingorsystemtypeid_missing","taxvaluedollarcnt_missing","taxamount_missing","yearbuilt","numberofstories","structuretaxvaluedollarcnt","finishedfloor1squarefeet_missing","finishedsquarefeet13_missing","yardbuildingsqft17_missing","numberofstories_missing","finishedsquarefeet13","finishedsquarefeet50","latitude","lotsizesquarefeet")
-tails.glm<-glm(as.formula(paste0("logerror ~ ",paste(tails_vars,collapse=" + "))), family=gaussian, data=train_clean)
-train$pred_tails_glm <- predict(tails.glm, data=train_clean, type="response")
-sum(abs(train$pred_tails_glm - train$logerror))/nrow(train)
-
-glm_2017<-glm(as.formula(paste0("logerror ~ ",paste(tails_vars,collapse=" + "))), family=gaussian, data=train_clean_2017)
-pred_glm_2017 <- predict(glm_2017, data=train_clean_2017, type="response")
-sum(abs(pred_glm_2017 - train_2017$logerror))/nrow(train_2017)
-
-
-for(i in 1:76){
-  vars<-c(tails_vars,tmp_vars[i])
-  tails.glm<-glm(as.formula(paste0("logerror ~ ",paste(vars,collapse=" + "))), family=gaussian, data=train_clean)
-  train$pred_tails_glm <- predict(tails.glm, data=train_clean, type="response")
-  print(paste0(i,": ",sum(abs(train$pred_tails_glm - train$logerror))/nrow(train)))
+for(i in 1:10){
+  set.seed(i)
+  rows<-sample(1:nrow(properties),nrow(properties))
+  scrambled_properties<-properties[rows,]
+  split<-round(nrow(properties) * 0.80)
+  train<-scrambled_properties[1:split,]
+  test<-scrambled_properties[(split+1):nrow(properties),]
+  MAE[i]<-sum(abs(mean(train$logerror) - test$logerror))/nrow(test)
 }
-  
-ggplot(train,aes(x=logerror,y=pred_tails_glm)) + 
+mean(MAE)
+sum(abs(mean(properties$logerror) - properties$logerror))/nrow(properties)
+```
+
+### Predict the Median
+```{r predict_median}
+MAE<-NA
+
+for(i in 1:10){
+  set.seed(i)
+  rows<-sample(1:nrow(properties),nrow(properties))
+  scrambled_properties<-properties[rows,]
+  split<-round(nrow(properties) * 0.80)
+  train<-scrambled_properties[1:split,]
+  test<-scrambled_properties[(split+1):nrow(properties),]
+  MAE[i]<-sum(abs(median(train$logerror) - test$logerror))/nrow(test)
+}
+
+mean(MAE)
+sum(abs(median(properties$logerror) - properties$logerror))/nrow(properties)
+```
+
+### Linear Models
+```{r linear_models}
+data<-properties[,names(properties) %in% c("lotsizesquarefeet","calculatedfinishedsquarefeet","bathroomcnt","yearbuilt","logerror","bedroomcnt","latitude","longitude","roomcnt")]
+
+for(i in 1:ncol(data)){
+  data[is.na(data[[i]]),i]<-median(na.omit(data[,i]))
+}
+
+scaled_data<-scale(data[,!names(data) == "logerror"],center=T, scale=T)
+
+data<-cbind(data$logerror, scaled_data)
+
+data_together<-cbind(data,data_missing[,!names(data_missing) %in% c("parcelid","logerror")])
+```
+
+```{r glmnet}
+myGrid <- expand.grid(
+  alpha = 0.03,
+  lambda = 0.04
+)
+
+set.seed(123)
+
+model.glmnet <- train(
+  logerror~.,
+  data,
+  method = "glmnet",
+  tuneGrid = myGrid,
+  metric = "MAE",
+  trControl = trainControl(
+  method = "cv",
+  number = 10,
+  verboseIter = T
+  )
+)
+
+pred<-predict(model.glmnet,data)
+
+glmnet_preds<-(cbind(pred,properties$logerror))
+glmnet_preds<-as.data.frame(glmnet_preds)
+names(glmnet_preds)<-c("pred","logerror")
+
+ggplot(glmnet_preds,aes(x=logerror,y=pred)) + 
   geom_point() +
   geom_abline(slope=1)
 
-#pred_tails_glm_MAE<-sum(abs(train$pred_tails_glm - train$logerror))/nrow(train)
+sum(abs(glmnet_preds$pred - glmnet_preds$logerror))/nrow(glmnet_preds)
+#0.069247
 
-properties_clean$transactionmonth<-"10"
-october2016_pred<-predict(tails.glm, newdata = properties_clean, type="response")
-properties_clean$transactionmonth<-"11"
-november2016_pred<-predict(tails.glm, newdata = properties_clean, type="response")
-properties_clean$transactionmonth<-"12"
-december2016_pred<-predict(tails.glm, newdata = properties_clean, type="response")
+glmnet_fmla <- coef(model.glmnet$finalModel, model.glmnet$bestTune$lambda)
 
-properties_clean_2017$transactionmonth<-"10"
-october2017_pred<-predict(tails.glm, newdata = properties_clean_2017, type="response")
-properties_clean_2017$transactionmonth<-"11"
-november2017_pred<-predict(tails.glm, newdata = properties_clean_2017, type="response")
-properties_clean_2017$transactionmonth<-"12"
-december2017_pred<-predict(tails.glm, newdata = properties_clean_2017, type="response")
 
-#Actual MAE: 0.0651393
-# Worse than the other glm
+myGrid <- expand.grid(
+  alpha = 0.275,
+  lambda = 0.005
+)
+
+set.seed(123)
+
+model.glmnet_together<-train(
+  logerror~.,
+  data_together,
+  method = "glmnet",
+  tuneGrid = myGrid,
+  metric = "MAE",
+  trControl = trainControl(
+  method = "cv",
+  number = 10,
+  verboseIter = T
+  )
+)
+
+pred<-predict(model.glmnet_together,data_together)
+
+glmnet_together_preds<-(cbind(pred,properties$logerror))
+glmnet_together_preds<-as.data.frame(glmnet_together_preds)
+names(glmnet_together_preds)<-c("pred","logerror")
+
+ggplot(glmnet_together_preds,aes(x=logerror,y=pred)) + 
+  geom_point() +
+  geom_abline(slope=1)
+
+sum(abs(glmnet_together_preds$pred - glmnet_together_preds$logerror))/nrow(glmnet_together_preds)
+#0.06918523
+
+glmnet_together_fmla <- coef(model.glmnet_together$finalModel, model.glmnet_together$bestTune$lambda)
+```
+
+```{r ranger}
+tuningGrid <- data.frame(mtry = 2, splitrule = "extratrees" )
+
+#mtry = c(2,5,8)
+
+set.seed(123)
+
+model.ranger<-train(
+  logerror~.,
+  data,
+  method="ranger",
+  tuneGrid = tuningGrid,
+  trControl=trainControl(
+    method="cv",number=10,
+    verboseIter=T
+  )
+)
+# don't need center or scale on tree-based models, median imputation is fine
+
+pred<-predict(model.ranger,data)
+
+forest_preds<-(cbind(pred,properties$logerror))
+forest_preds<-as.data.frame(forest_preds)
+names(forest_preds)<-c("pred","logerror")
+
+ggplot(forest_preds,aes(x=logerror,y=pred)) + 
+  geom_point() +
+  geom_abline(slope=1)
+
+sum(abs(forest_preds$pred - forest_preds$logerror))/nrow(forest_preds)
+#0.05604133
 ```
 
 ```{r}
-# try using caret, on top of ranger, to do cross validation and modeling
+set.seed(123)
 
-vars<-c("bathroomcnt","bedroomcnt","latitude","longitude","roomcnt","total_missingness")
-  #"regionidcounty","regionidcity","regionidzip","propertyzoningdesc","propertylandusetypeid","propertycountylandusecode","fips","transactiondate","landtaxvaluedollarcnt","taxvaluedollarcnt","taxamount")
-forest<-ranger(as.formula(paste0("logerror ~ ",paste(vars, collapse = " + "))), data=na.omit(train[,c("logerror",vars)]), num.trees=10000, respect.unordered.factors=TRUE)
-# Tried with 500, 1,000, and 10,000 trees and the MAE is still larger than with a glm, though it did decrease with more trees
-#    500 trees: MAE = 0.07187436
-#  1,000 trees: MAE = 0.07173303
-# 10,000 trees: MAE = 0.07159979
-#          GLM: MAE = 0.06839010
+model.ranger2<-train(
+  logerror~.,
+  data_together,
+  method="ranger",
+  trControl=trainControl(
+    method="cv",number=10,
+    verboseIter=T
+  )
+)
 
-dim(na.omit(train[,c("parcelid",vars)]))
-train[train$parcelid %in% (na.omit(train[,c("parcelid",vars)]))$parcelid,"forest_pred"]<-forest$predictions
+pred<-predict(model.ranger2,data_together)
 
-train[is.na(train$forest_pred),"forest_pred"]<-mean(train$logerror)
+forest_preds_2<-(cbind(pred,properties$logerror))
+forest_preds_2<-as.data.frame(forest_preds_2)
+names(forest_preds_2)<-c("pred","logerror")
 
-ggplot(train,aes(x=logerror,y=forest_pred)) + 
+ggplot(forest_preds_2,aes(x=logerror,y=pred)) + 
   geom_point() +
   geom_abline(slope=1)
 
-sum(abs(train$forest_pred - train$logerror))/nrow(train)
+sum(abs(forest_preds_2$pred - forest_preds_2$logerror))/nrow(forest_preds_2)
+#0.0693135
+```
+
+```{r}
+tuningGrid <- data.frame(mtry = 3, splitrule = "extratrees" )
+  
+set.seed(123)
+
+model.ranger3<-train(
+  logerror~.,
+  data_together,
+  method = "ranger",
+  metric = "MAE",
+  tuneGrid = tuningGrid,
+  trControl = trainControl(
+    method="cv",
+    number = 10,
+    verboseIter = T
+  )
+)
+
+pred<-predict(model.ranger3,data_together)
+
+forest_preds_3<-(cbind(pred,properties$logerror))
+forest_preds_3<-as.data.frame(forest_preds_3)
+names(forest_preds_3)<-c("pred","logerror")
+
+ggplot(forest_preds_3,aes(x=logerror,y=pred)) + 
+  geom_point() +
+  geom_abline(slope=1)
+
+sum(abs(forest_preds_3$pred - forest_preds_3$logerror))/nrow(forest_preds_3)
+#0.06644709
 ```
